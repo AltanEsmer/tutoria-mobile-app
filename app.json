@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Tutoria",
+    "slug": "tutoria",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "tutoria",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ac.tutoria.mobile",
+      "infoPlist": {
+        "NFCReaderUsageDescription": "Tutoria uses NFC to read learning cards and start phonics lessons"
+      }
+    },
+    "android": {
+      "package": "ac.tutoria.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.NFC"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-router"
+    ]
+  }
+}
