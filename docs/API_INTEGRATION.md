@@ -363,6 +363,47 @@ If the request times out, display a user-friendly message and allow the user to 
 
 ---
 
+## 5b. Retry Strategy
+
+### Retryable vs Non-Retryable Errors
+
+| Status Code | Retryable | Strategy |
+|-------------|-----------|----------|
+| 400 | ❌ | Fix request, do not retry |
+| 401 | ❌ | Trigger re-authentication flow |
+| 403 | ❌ | Show "access denied" message |
+| 404 | ❌ | Show "not found" message |
+| 409 | ❌ | Handle conflict (e.g., session already active) |
+| 429 | ⏱️ | Wait for `retryAfter` seconds, then retry once |
+| 5xx | ✅ | Retry with exponential backoff |
+| Network Error | ✅ | Retry with exponential backoff (if online) or queue (if offline) |
+
+### Exponential Backoff
+
+For 5xx and network errors, use exponential backoff with jitter:
+
+```ts
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+const MAX_DELAY_MS = 10000;
+
+function getRetryDelay(attempt: number): number {
+  const exponential = BASE_DELAY_MS * Math.pow(2, attempt);
+  const jitter = Math.random() * BASE_DELAY_MS;
+  return Math.min(exponential + jitter, MAX_DELAY_MS);
+}
+
+// Delays: ~1s, ~2s, ~4s (capped at 10s)
+```
+
+### What NOT to Retry
+
+- `POST /v1/pronunciation/check` — rate-limited, uses AI pipeline credits
+- `POST /v1/profiles/create` — could create duplicates
+- `DELETE /v1/modules/:moduleId` — abandon is intentional
+
+---
+
 ## 6. Rate Limiting
 
 | Endpoint                    | Limit                     | Window   |
@@ -475,3 +516,54 @@ User taps "Quit" → DELETE /v1/modules/:moduleId?profileId=
                   → Session discarded, attempt NOT counted
                   → User returns to home screen
 ```
+
+---
+
+## 9. Debugging API Calls
+
+### curl Examples
+
+Test API connectivity and responses from the command line:
+
+```bash
+# Health check (no auth required)
+curl https://api-dev.tutoria.ac/health
+
+# List profiles (requires JWT)
+curl -H "Authorization: Bearer <your-clerk-jwt>" \
+  https://api-dev.tutoria.ac/v1/profiles/list
+
+# Get missions for a profile
+curl -H "Authorization: Bearer <token>" \
+  "https://api-dev.tutoria.ac/v1/modules/missions?profileId=<uuid>"
+
+# Check module status
+curl -H "Authorization: Bearer <token>" \
+  "https://api-dev.tutoria.ac/v1/modules/<moduleId>?profileId=<uuid>"
+```
+
+### Getting a Clerk JWT for Testing
+
+```ts
+// In the app, temporarily log the token:
+const { getToken } = useAuth();
+const token = await getToken();
+console.log('JWT:', token);
+// Copy from Metro logs, use in curl commands
+```
+
+### Axios Request Logging
+
+Enable verbose logging during development:
+
+```ts
+// Add to src/services/api/client.ts (dev only)
+if (__DEV__) {
+  apiClient.interceptors.request.use((config) => {
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, config.params);
+    return config;
+  });
+}
+```
+
+> **Tip:** Use React Native Debugger or Flipper to inspect network requests visually.

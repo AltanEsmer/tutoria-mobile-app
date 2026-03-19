@@ -139,14 +139,19 @@ src/
 | [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) | Local development environment setup |
 | [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) | Detailed breakdown of the codebase |
 | [`docs/DATA_MODELS.md`](docs/DATA_MODELS.md) | Data models, schemas, and store shapes |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution guidelines |
-| [`tutoria-api.md`](tutoria-api.md) | Full Tutoria backend API specification |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Implementation roadmap & phased milestones |
+| [`docs/infrastructure/DEPLOYMENT.md`](docs/infrastructure/DEPLOYMENT.md) | Build, signing, and release process |
+| [`docs/infrastructure/SECURITY.md`](docs/infrastructure/SECURITY.md) | Security model & data privacy |
+| [`docs/infrastructure/OFFLINE_STRATEGY.md`](docs/infrastructure/OFFLINE_STRATEGY.md) | Offline support & caching architecture |
+| [`docs/infrastructure/ERROR_HANDLING.md`](docs/infrastructure/ERROR_HANDLING.md) | Error handling patterns & crash reporting |
+| [`docs/quality/TESTING_STRATEGY.md`](docs/quality/TESTING_STRATEGY.md) | Testing approach, setup, and CI integration |
+| [`docs/tutoria-api.md`](docs/tutoria-api.md) | Full Tutoria backend API specification |
 
 ---
 
 ## API Overview
 
-The Tutoria backend is fully documented in [`tutoria-api.md`](tutoria-api.md). It runs as a **Cloudflare Worker** built with **Hono** and uses:
+The Tutoria backend is fully documented in [`docs/tutoria-api.md`](docs/tutoria-api.md). It runs as a **Cloudflare Worker** built with **Hono** and uses:
 
 - **D1 (SQLite)** for relational data (users, profiles, progress, modules)
 - **R2 Object Storage** for audio files and lesson media
@@ -165,6 +170,35 @@ All API requests from the app flow through the Axios client in `src/services/api
 | **iOS** | ✅ Foreground | Uses Core NFC — the user must initiate a scan session via the in-app UI before tapping a card |
 
 > Both platforms require a **development build**. Expo Go does not support `react-native-nfc-manager`.
+
+---
+
+## Roadmap
+
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full implementation plan. Current phases:
+
+| Phase | Focus | Status |
+| --- | --- | --- |
+| 1 | Foundation (providers, auth, tsconfig) | 🔜 Next |
+| 2 | Core Screens & Navigation | ⏳ Planned |
+| 3 | Core Features (NFC, audio, pronunciation) | ⏳ Planned |
+| 4 | Offline & Resilience | ⏳ Planned |
+| 5 | Testing & Quality | ⏳ Planned |
+| 6 | Deployment & Release | ⏳ Planned |
+
+---
+
+## Troubleshooting
+
+| Issue | Fix |
+| --- | --- |
+| NFC not detected | Use a development build, not Expo Go. Check device NFC is enabled. |
+| Clerk auth errors | Verify `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` in `.env` |
+| API connection failed | Check `EXPO_PUBLIC_API_URL` — run `curl <url>/health` to verify |
+| Metro cache issues | Run `npx expo start --clear` |
+| Build errors (native modules) | Run `npx expo prebuild --clean` |
+
+For detailed setup help, see [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md).
 
 ---
 

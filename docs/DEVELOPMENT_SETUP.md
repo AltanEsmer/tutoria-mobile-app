@@ -14,6 +14,18 @@ Development setup guide for the Tutoria React Native (Expo) mobile app.
 - **Clerk account** with publishable key
 - **Access to Tutoria API** (dev environment)
 
+### Platform SDK Versions
+
+| Platform | Tool | Minimum Version | Recommended |
+|----------|------|----------------|-------------|
+| Android | Android Studio | Hedgehog (2023.1.1) | Latest stable |
+| Android | SDK Platform | API 34 (Android 14) | API 34+ |
+| Android | Build Tools | 34.0.0 | Latest |
+| iOS | Xcode | 15.0 | 15.4+ |
+| iOS | CocoaPods | 1.14.0 | Latest |
+
+> **Note:** Ensure Android SDK environment variables are set: `ANDROID_HOME` and `ANDROID_SDK_ROOT`.
+
 ## 2. Getting Started
 
 ```bash
@@ -36,6 +48,17 @@ cp .env.example .env
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes | Clerk publishable key |
 | `EXPO_PUBLIC_API_URL` | Yes | Tutoria API URL (default: `https://api-dev.tutoria.ac`) |
 | `EXPO_PUBLIC_ENABLE_NFC_MOCK` | No | Enable NFC mocking for development (default: `false`) |
+
+### Environment Variable Precedence
+
+Expo loads environment variables in this order (later overrides earlier):
+
+1. `.env` — Base defaults (committed to repo as `.env.example`)
+2. `.env.local` — Local overrides (gitignored, never committed)
+3. `.env.development` / `.env.production` — Mode-specific overrides
+4. System environment variables — CI/CD pipeline values
+
+> Only variables prefixed with `EXPO_PUBLIC_` are accessible in client code at build time via `process.env.EXPO_PUBLIC_*`.
 
 ## 4. Running the App
 
@@ -116,6 +139,45 @@ npm run format     # Run Prettier
 
 - Run `npx expo prebuild --clean` to regenerate native projects
 - Clear Metro cache: `npx expo start --clear`
+
+### Metro bundler cache issues
+
+```bash
+# Clear Metro cache
+npx expo start --clear
+
+# Full reset (nuclear option)
+rm -rf node_modules/.cache
+npx expo start --clear
+```
+
+### Expo prebuild cleanup
+
+If native project files get into a bad state after plugin changes:
+
+```bash
+# Remove generated native projects and regenerate
+npx expo prebuild --clean
+
+# Then rebuild
+npx expo run:android  # or run:ios
+```
+
+### Proxy / Firewall / VPN
+
+If you're behind a corporate proxy:
+
+```bash
+# Set npm proxy
+npm config set proxy http://proxy.example.com:8080
+npm config set https-proxy http://proxy.example.com:8080
+
+# For Expo dev server, ensure your device and dev machine are on the same network
+# Use tunnel mode if direct connection fails:
+npx expo start --tunnel
+```
+
+> **Note:** `--tunnel` mode requires `@expo/ngrok` — install with `npm install -g @expo/ngrok`.
 
 ## 10. IDE Setup
 

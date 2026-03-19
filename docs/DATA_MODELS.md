@@ -386,6 +386,113 @@ interface HealthResponse {
 
 ---
 
+## 10b. Timestamp Standardization
+
+The codebase uses two timestamp formats. This section clarifies when each is used.
+
+| Format | Type | Used In | Example |
+|--------|------|---------|---------|
+| ISO 8601 string | `string` | D1 database columns, API responses for creation dates | `"2025-03-15T10:30:00Z"` |
+| Unix milliseconds | `number` | Client-side session state, cooldown calculations | `1710499800000` |
+
+### Conversion Guidelines
+
+```ts
+// ISO 8601 → Unix ms
+const unixMs = new Date(isoString).getTime();
+
+// Unix ms → ISO 8601
+const isoString = new Date(unixMs).toISOString();
+```
+
+### Where Each Format Appears
+
+| Field | Format | Notes |
+|-------|--------|-------|
+| `Profile.created_at` | ISO 8601 | From D1 |
+| `ProgressItem.last_correct_date` | ISO 8601 | Date only (no time component) |
+| `ProgressItem.mastered_at` | ISO 8601 | Full timestamp |
+| `ModuleStatus.cooldownEndsAt` | Unix ms (`number \| null`) | Calculated client-side from `last_attempt_at + 12h` |
+| `SessionData.started` | Unix ms | Session start time |
+| `pronunciation_metrics.created_at` | ISO 8601 | From D1 |
+
+> **Convention:** API responses use ISO 8601. Client-side calculations (cooldowns, session timing) use Unix ms for easier arithmetic. Always convert at the boundary.
+
+---
+
+## 10c. Validation Patterns
+
+Runtime validation ensures API responses match expected shapes. Recommended approach: [Zod](https://zod.dev) schemas.
+
+### Profile Validation
+
+```ts
+import { z } from 'zod';
+
+const ProfileSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(50),
+  created_at: z.string().datetime(),
+});
+
+const ProfileListSchema = z.object({
+  profiles: z.array(ProfileSchema),
+});
+
+// Usage in API service
+export async function listProfiles(): Promise<Profile[]> {
+  const { data } = await apiClient.get('/v1/profiles/list');
+  const parsed = ProfileListSchema.parse(data); // throws on invalid shape
+  return parsed.profiles;
+}
+```
+
+### NFC Tag Validation
+
+```ts
+const NfcTagSchema = z.object({
+  tagId: z.string().min(1),
+  moduleId: z.string().regex(/^[a-z0-9-]+$/),
+  isValid: z.literal(true),
+});
+
+// Type guard alternative (no Zod dependency)
+function isValidNfcPayload(raw: string): boolean {
+  if (!raw.startsWith('tutoria:')) return false;
+  const moduleId = raw.slice(8);
+  return moduleId.length > 0 && /^[a-z0-9-]+$/.test(moduleId);
+}
+```
+
+### Type Guards
+
+For lightweight runtime checks without adding Zod:
+
+```ts
+function isApiError(value: unknown): value is { error: string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'error' in value &&
+    typeof (value as Record<string, unknown>).error === 'string'
+  );
+}
+
+function isSessionData(value: unknown): value is SessionData {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'words' in value &&
+    'position' in value &&
+    Array.isArray((value as Record<string, unknown>).words)
+  );
+}
+```
+
+> **Recommendation:** Use Zod for API boundary validation (service layer). Use type guards for internal checks (stores, components). This keeps the bundle size impact minimal while ensuring safety at the network boundary.
+
+---
+
 ## 11. Zustand Store Shapes
 
 All stores use [Zustand](https://github.com/pmndrs/zustand) for lightweight state management.
