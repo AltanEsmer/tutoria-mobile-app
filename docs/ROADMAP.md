@@ -13,14 +13,14 @@
 | Services (8 API modules + NFC) | ✅ Complete | |
 | Zustand stores (auth, profile, lesson, nfc, progress) | ✅ Complete | |
 | Custom hooks (useNfc, useAudio, usePronunciation) | ⚠️ Partial | |
-| Root layout | 🔴 Skeleton | `<Slot />` only, no providers |
-| Screens | 🔴 None | Both route groups empty |
+| Root layout | ✅ Complete | Providers, auth guard, hydration, error boundary wired |
+| Screens | ⚠️ Partial | Auth screens implemented; public screens pending |
 | Components (lesson / nfc / progress / ui) | 🔴 None | Folders exist, files empty |
 | Testing infrastructure | 🔴 None | |
-| Persistent auth (expo-secure-store) | 🔴 None | Package present, unused |
+| Persistent auth (expo-secure-store) | ✅ Complete | Clerk `tokenCache` implemented via SecureStore |
 | Offline progress queue | 🔴 None | Documented but not implemented |
 | Error boundaries | 🔴 None | |
-| tsconfig path aliases (`@/`) | 🔴 Missing | Documented but not configured |
+| tsconfig path aliases (`@/`) | ✅ Complete | Configured in `tsconfig.json` and Babel module resolver |
 
 ---
 
@@ -30,20 +30,20 @@
 
 ### Deliverables
 
-- [ ] **tsconfig path aliases** — Add `"@/*": ["./src/*"]` (and any other documented aliases) to `compilerOptions.paths`; add matching `babel-plugin-module-resolver` entry so Metro resolves them at runtime.
-- [ ] **Root layout** — Replace `<Slot />` skeleton with a fully-wired `app/_layout.tsx`:
+- [x] **tsconfig path aliases** — Add `"@/*": ["./src/*"]` (and any other documented aliases) to `compilerOptions.paths`; add matching `babel-plugin-module-resolver` entry so Metro resolves them at runtime.
+- [x] **Root layout** — Replace `<Slot />` skeleton with a fully-wired `app/_layout.tsx`:
   - `<ClerkProvider>` wrapping the entire tree (publishable key from env)
   - `<GestureHandlerRootView>` and `<SafeAreaProvider>` for Reanimated 4 compatibility
   - Zustand store hydration (call each store's `hydrate()` / `rehydrate()` action on mount)
   - Top-level `<ErrorBoundary>` component (see Phase 4)
-- [ ] **Persistent auth tokens** — Implement `expo-secure-store` token cache for Clerk (`tokenCache` option on `ClerkProvider`); tokens must survive app restart.
-- [ ] **Auth guard** — `useAuth` hook-based redirect logic:
+- [x] **Persistent auth tokens** — Implement `expo-secure-store` token cache for Clerk (`tokenCache` option on `ClerkProvider`); tokens must survive app restart.
+- [x] **Auth guard** — `useAuth` hook-based redirect logic:
   - Unauthenticated users are redirected to `/(auth)/sign-in`
   - Authenticated users are redirected away from `/(auth)/*` to `/(public)/home`
   - Use Expo Router's `<Redirect>` or `router.replace`; guard runs inside root layout after hydration.
-- [ ] **Sign-in screen** — `/(auth)/sign-in`: email + password fields, Clerk `signIn.create`, error display, link to sign-up.
-- [ ] **Sign-up screen** — `/(auth)/sign-up`: email + password + confirm password, Clerk `signUp.create`, email verification step.
-- [ ] **Forgot password screen** — `/(auth)/forgot-password`: email field, Clerk `signIn.resetPassword` flow.
+- [x] **Sign-in screen** — `/(auth)/sign-in`: email + password fields, Clerk `signIn.create`, error display, link to sign-up.
+- [x] **Sign-up screen** — `/(auth)/sign-up`: email + password + confirm password, Clerk `signUp.create`, email verification step.
+- [x] **Forgot password screen** — `/(auth)/forgot-password`: email field, Clerk `signIn.resetPassword` flow.
 
 ### Dependencies
 
@@ -56,6 +56,7 @@ None — this is the starting phase.
 - [ ] Signing in persists across a full app kill + relaunch (token survives).
 - [ ] Signing out from any screen returns to sign-in screen.
 - [ ] Auth screens display field-level validation errors returned by Clerk.
+  - Status: Implementation appears in place, but these checks still need explicit verification.
 
 ### Key Technical Notes
 
@@ -384,10 +385,10 @@ Phases are strictly sequential. No phase should begin until its predecessor's ac
 
 ---
 
-## Immediate Next Actions (Phase 1 Start)
+## Immediate Next Actions (Phase 1 Validation)
 
-1. `tsconfig.json` — add `paths` and verify with `npx tsc --noEmit`.
-2. `babel.config.js` — add `babel-plugin-module-resolver` with `@/` → `./src/` alias.
-3. `app/_layout.tsx` — implement providers + hydration + auth guard.
-4. `src/lib/clerkTokenCache.ts` — `SecureStore`-backed token cache.
-5. `app/(auth)/sign-in.tsx`, `sign-up.tsx`, `forgot-password.tsx` — auth screens.
+1. Run `npx tsc --noEmit` and confirm zero errors.
+2. Cold-launch with no session and verify redirect to `/(auth)/sign-in`.
+3. Complete sign-in, kill/relaunch app, and verify session persistence.
+4. Trigger sign-out and verify redirect back to sign-in.
+5. Intentionally submit invalid auth inputs and verify Clerk field-level error UX.

@@ -14,10 +14,13 @@ export async function createProfile(req: CreateProfileRequest): Promise<string> 
   return data.profileId;
 }
 
-export async function selectProfile(profileId: string): Promise<{ profileId: string; profileName: string }> {
-  const { data } = await apiClient.post<{ success: boolean; profileId: string; profileName: string }>(
-    '/v1/profiles/select',
-    { profileId },
-  );
+export async function selectProfile(
+  profileId: string,
+): Promise<{ profileId: string; profileName: string }> {
+  const { data } = await apiClient.post<{
+    success: boolean;
+    profileId: string;
+    profileName: string;
+  }>('/v1/profiles/select', { profileId });
   return { profileId: data.profileId, profileName: data.profileName };
 }

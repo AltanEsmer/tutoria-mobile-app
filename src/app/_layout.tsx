@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts, Lexend_400Regular, Lexend_700Bold } from '@expo-google-fonts/lexend';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { tokenCache } from '@/utils/tokenCache';
@@ -33,6 +34,7 @@ function RootLayoutInner() {
 
 export default function RootLayout() {
   const [hasHydrated, setHasHydrated] = useState(false);
+  const [fontsLoaded] = useFonts({ Lexend_400Regular, Lexend_700Bold });
 
   useEffect(() => {
     async function hydrate() {
@@ -51,10 +53,10 @@ export default function RootLayout() {
     hydrate();
   }, []);
 
-  if (!hasHydrated) {
+  if (!hasHydrated || !fontsLoaded) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color="#FF9F1C" />
       </View>
     );
   }

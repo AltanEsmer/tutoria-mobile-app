@@ -13,11 +13,13 @@
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.31",
+    "@expo-google-fonts/lexend": "^0.4.1",
     "axios": "^1.13.6",
     "expo": "~55.0.6",
     "expo-auth-session": "^55.0.8",
     "expo-av": "^16.0.8",
     "expo-constants": "~55.0.7",
+    "expo-font": "^55.0.4",
     "expo-haptics": "~55.0.8",
     "expo-linking": "~55.0.7",
     "expo-router": "~55.0.5",

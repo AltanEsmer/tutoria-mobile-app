@@ -67,9 +67,7 @@ export default function SignUpScreen() {
       >
         <View style={styles.inner}>
           <Text style={styles.title}>Check your email</Text>
-          <Text style={styles.subtitle}>
-            We sent a 6-digit code to {email}. Enter it below.
-          </Text>
+          <Text style={styles.subtitle}>We sent a 6-digit code to {email}. Enter it below.</Text>
 
           <TextInput
             style={styles.input}

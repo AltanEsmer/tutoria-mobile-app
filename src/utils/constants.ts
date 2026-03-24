@@ -2,11 +2,9 @@
  * App-wide constants
  */
 
-export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || 'https://api-dev.tutoria.ac';
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api-dev.tutoria.ac';
 
-export const CLERK_PUBLISHABLE_KEY =
-  process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || '';
+export const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || '';
 
 // NFC
 export const NFC_TAG_PREFIX = 'tutoria:';
