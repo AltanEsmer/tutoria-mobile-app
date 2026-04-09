@@ -5,6 +5,24 @@
 
 ---
 
+## Platform Support
+
+| Platform | Supported | Min OS Version | Notes |
+|---|---|---|---|
+| **iOS** | ✅ | iOS 16.0 (Expo 55 minimum) | NFC requires iPhone 7+; NFC unavailable in Simulator — use `EXPO_PUBLIC_ENABLE_NFC_MOCK=true` |
+| **Android** | ✅ | Android 7.0 (API 24) | NFC unavailable in emulator — use mock flag for dev |
+| **Web** | ⚠️ Basic | — | NFC and microphone recording not available on web |
+
+### Building for iOS (macOS)
+
+- **Simulator (no hardware needed):** `npm run ios` — launches Expo dev server targeting the iOS Simulator.
+- **Physical device via Expo Go:** `npm run start` → scan QR code with Expo Go on your iPhone.
+- **Production / custom dev client:** requires EAS Build (`eas build --platform ios`). Set up in Phase 6.
+- **NFC on iOS:** Core NFC entitlement must be added to `app.json` `ios.entitlements` before submitting. The `NFCReaderUsageDescription` in `infoPlist` is already configured.
+- **Microphone permission:** required for pronunciation recording — `NSMicrophoneUsageDescription` must be added to `ios.infoPlist`.
+
+---
+
 ## Current Status Snapshot
 
 | Layer | Status | Notes |
@@ -12,15 +30,21 @@
 | TypeScript types & constants | ✅ Complete | |
 | Services (8 API modules + NFC) | ✅ Complete | |
 | Zustand stores (auth, profile, lesson, nfc, progress) | ✅ Complete | |
-| Custom hooks (useNfc, useAudio, usePronunciation) | ⚠️ Partial | |
+| Custom hooks (useNfc, useAudio, usePronunciation) | ✅ Complete | All three hooks fully implemented |
 | Root layout | ✅ Complete | Providers, auth guard, hydration, error boundary wired |
-| Screens | ⚠️ Partial | Auth screens implemented; public screens pending |
-| Components (lesson / nfc / progress / ui) | 🔴 None | Folders exist, files empty |
+| Auth screens (sign-in, sign-up, forgot-password) | ✅ Complete | |
+| Public screens (home, lesson, progress, profile, syllabus) | ✅ Complete | All Phase 2 screens fully implemented |
+| Components (lesson / nfc / progress / ui) | ✅ Complete | All component files populated |
 | Testing infrastructure | 🔴 None | |
 | Persistent auth (expo-secure-store) | ✅ Complete | Clerk `tokenCache` implemented via SecureStore |
 | Offline progress queue | 🔴 None | Documented but not implemented |
-| Error boundaries | 🔴 None | |
+| Error boundaries | ✅ Complete | `ErrorBoundary` component wraps root layout |
 | tsconfig path aliases (`@/`) | ✅ Complete | Configured in `tsconfig.json` and Babel module resolver |
+| NFC scan → navigation | 🔴 Not started | `useNfc` hook ready; `NfcPrompt` is static display only |
+| Haptic feedback | 🔴 Not started | Not yet wired anywhere |
+| Module session lifecycle (completeWord / results) | 🔴 Not started | Load works; completion flow and results screen missing |
+| Pronunciation feedback display | 🔴 Not started | Hook works; score/feedback UI not shown in lesson screen |
+| Word attempt limits | 🔴 Not started | |
 
 ---
 
@@ -72,29 +96,27 @@ None — this is the starting phase.
 
 ### Deliverables
 
-- [ ] **Tab navigator** — Bottom tabs inside `/(public)/_layout.tsx`: Home, Progress, Profile. Use `expo-router` tabs with custom icons.
-- [ ] **Home screen** — `/(public)/home`:
-  - Fetch and display the 3 highest-priority active missions from the missions API.
-  - Mission card component (`src/components/ui/MissionCard`): title, description, progress bar, CTA button.
-  - "Tap NFC card to start lesson" prompt when no active lesson.
-- [ ] **Profile selector screen** — `/(public)/profile`:
-  - List child profiles linked to the parent account.
-  - Tap a profile to set it as the active profile in the profile store.
-  - "Add profile" entry point (form screen: name, avatar, age).
-- [ ] **Lesson screen scaffolding** — `/(public)/lesson/[moduleId]`:
-  - Word display area (large, dyslexia-friendly font — OpenDyslexic or similar).
-  - Audio play button (wired to `useAudio` hook, functional in Phase 3).
-  - Pronunciation record button (wired to `usePronunciation` hook, functional in Phase 3).
-  - Progress indicator: current word index / total words in module.
-  - Placeholder state when navigated to directly without NFC (deep link fallback).
-- [ ] **Progress dashboard screen** — `/(public)/progress`:
-  - Current streak display (days).
-  - Activity progress per module (list of modules with % complete).
-  - Weekly activity chart (simple bar chart using `react-native-svg` or `victory-native`).
-  - Data sourced from the progress store.
-- [ ] **Syllabus/curriculum browser screen** — `/(public)/syllabus`:
-  - List syllabuses → tap to see stages → tap to see modules.
-  - Module row: title, word count, locked/unlocked state, completion badge.
+- [x] **Tab navigator** — Bottom tabs inside `/(public)/_layout.tsx`: Home, Progress, Syllabus, Profile. Uses `expo-router` Tabs with emoji icons.
+- [x] **Home screen** — `/(public)/home`:
+  - Fetches and displays top-3 priority missions from the missions API.
+  - `MissionCard` component: title, description, progress bar, CTA button.
+  - `NfcPrompt` card shown when no active lesson (static display — NFC scanning wired in Phase 3).
+- [x] **Profile selector screen** — `/(public)/profile`:
+  - Lists child profiles; tap to set active profile in store.
+  - "Add profile" screen at `/(public)/profile/add`.
+- [x] **Lesson screen scaffolding** — `/(public)/lesson/[moduleId]`:
+  - `WordDisplay` component with Lexend font.
+  - Audio play button wired to `useAudio` hook.
+  - Pronunciation record button wired to `usePronunciation` hook.
+  - Progress indicator (current word / total words) with bar.
+  - Placeholder state when no active session (deep link fallback).
+- [x] **Progress dashboard screen** — `/(public)/progress`:
+  - `StreakBadge`, `WeeklyChart`, `ActivityList` components.
+  - Data fetched from progress API and stored in progress store.
+- [x] **Syllabus/curriculum browser screen** — `/(public)/syllabus`:
+  - Expandable stage cards → module rows (2-level: stage → modules).
+  - Tapping a module navigates to the lesson screen.
+  - Note: top-level syllabus grouping not yet implemented (stages are the root).
 
 ### Dependencies
 
@@ -102,11 +124,11 @@ None — this is the starting phase.
 
 ### Acceptance Criteria
 
-- [ ] Authenticated user lands on Home screen with mission cards rendered from live API data.
-- [ ] Switching active child profile updates displayed data across all screens.
-- [ ] Navigating to a lesson screen shows the word display layout (static data acceptable at this stage).
-- [ ] Progress screen renders streak and at least one module's progress from the store.
-- [ ] Syllabus browser correctly renders the three-level hierarchy (syllabus → stage → module).
+- [x] Authenticated user lands on Home screen with mission cards rendered from live API data.
+- [x] Switching active child profile updates displayed data across all screens.
+- [x] Navigating to a lesson screen shows the word display layout (static data acceptable at this stage).
+- [x] Progress screen renders streak and at least one module's progress from the store.
+- [x] Syllabus browser renders stages and modules (top-level syllabus grouping deferred).
 
 ### Key Technical Notes
 
@@ -123,34 +145,35 @@ None — this is the starting phase.
 ### Deliverables
 
 - [ ] **NFC scan → lesson launch**:
-  - `useNfc` hook polls for tag scan; on NTAG215 detection extract `moduleId` from NDEF payload.
-  - Navigate to `/(public)/lesson/[moduleId]` on successful scan.
-  - Show scan overlay/modal on Home screen (animated NFC ring graphic).
-  - Handle NFC unavailable (device lacks NFC) and NFC disabled (redirect to settings) gracefully.
+  - `useNfc` hook ✅ — polls for tag scan; extracts `moduleId` from NDEF payload.
+  - [ ] Wire `useNfc.scan()` inside `NfcPrompt` (or Home screen) so a successful scan navigates to `/(public)/lesson/[moduleId]`.
+  - [ ] Show animated NFC ring graphic on Home screen while scanning.
+  - [ ] Handle NFC unavailable / NFC disabled gracefully (already partially handled in `useNfc`).
 - [ ] **Audio playback**:
-  - `useAudio` hook: load audio asset URL from lesson store, play/pause/stop via `expo-av` `Audio.Sound`.
-  - Auto-play word audio when a new word is displayed.
-  - Show loading indicator while audio asset is fetching.
+  - `useAudio` hook ✅ — play/stop via `expo-av` `Audio.Sound`.
+  - Play button wired in lesson screen ✅.
+  - [ ] Auto-play word audio when a new word is displayed.
+  - [ ] Show loading indicator while audio asset is fetching.
 - [ ] **Pronunciation recording + AI feedback**:
-  - `usePronunciation` hook: record via `expo-av` `Audio.Recording`, upload to backend pronunciation endpoint.
-  - Backend pipeline: Azure Speech STT → Gemini/Mistral evaluation → score + feedback text returned.
-  - Display feedback inline on the lesson screen: score badge + short feedback message.
-  - Retry button on failure.
+  - `usePronunciation` hook ✅ — records via `expo-av`, uploads to backend, returns score.
+  - Record button wired in lesson screen ✅.
+  - [ ] Display feedback inline: score badge + short feedback message after `stopAndCheck` resolves.
+  - [ ] Retry button on upload failure.
 - [ ] **Haptic feedback**:
-  - Correct pronunciation: `Haptics.notificationAsync(NotificationFeedbackType.Success)`.
-  - Incorrect pronunciation: `Haptics.notificationAsync(NotificationFeedbackType.Warning)`.
-  - NFC card detected: `Haptics.impactAsync(ImpactFeedbackStyle.Medium)`.
-  - Button taps (primary actions): `Haptics.impactAsync(ImpactFeedbackStyle.Light)`.
+  - [ ] Correct pronunciation: `Haptics.notificationAsync(NotificationFeedbackType.Success)`.
+  - [ ] Incorrect pronunciation: `Haptics.notificationAsync(NotificationFeedbackType.Warning)`.
+  - [ ] NFC card detected: `Haptics.impactAsync(ImpactFeedbackStyle.Medium)`.
+  - [ ] Button taps (primary actions): `Haptics.impactAsync(ImpactFeedbackStyle.Light)`.
 - [ ] **Module session lifecycle**:
-  1. `startSession(moduleId)` — store action, sets `currentModule`, resets word index to 0.
-  2. Word-by-word loop — advance word index on successful pronunciation or manual skip.
-  3. `completeWord(wordId, attempts, passed)` — store action, POST to progress API.
-  4. `completeSession()` — POST module completion to API, update progress store, navigate to results screen.
-  5. Results screen: words attempted, words passed, session score, confetti animation (`react-native-confetti-cannon` or Reanimated).
+  - `startOrResumeModule` wired in lesson screen ✅.
+  1. [ ] `completeWord(wordId, attempts, passed)` — store action, POST to progress API.
+  2. [ ] Word-by-word loop — advance word index on successful pronunciation or manual skip.
+  3. [ ] `completeSession()` — POST module completion to API, update progress store, navigate to results screen.
+  4. [ ] Results screen: words attempted, words passed, session score, confetti animation.
 - [ ] **Word attempt limits**:
-  - Max 3 attempts per word per session.
-  - If 3 attempts are exhausted without passing: mark word as `failed`, advance automatically.
-  - 12-hour cooldown before the same word can be reattempted (enforced via timestamp stored in progress store + AsyncStorage).
+  - [ ] Max 3 attempts per word per session.
+  - [ ] 3 failed attempts: mark word as `failed`, advance automatically.
+  - [ ] 12-hour cooldown (timestamp in progress store + AsyncStorage).
 
 ### Dependencies
 
