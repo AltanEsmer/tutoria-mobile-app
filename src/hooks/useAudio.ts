@@ -1,34 +1,35 @@
 import { useCallback, useRef } from 'react';
-import { Audio } from 'expo-av';
+import { createAudioPlayer } from 'expo-audio';
+import type { AudioPlayer } from 'expo-audio';
 import { getAudioProxyUrl } from '../services/api/audio';
 
 /**
  * Hook for audio playback via the Tutoria audio proxy.
  */
 export function useAudio() {
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
 
   const play = useCallback(async (r2Path: string) => {
     try {
-      // Unload previous sound
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
+      if (playerRef.current) {
+        playerRef.current.pause();
+        playerRef.current.remove();
       }
 
       const url = getAudioProxyUrl(r2Path);
-      const { sound } = await Audio.Sound.createAsync({ uri: url });
-      soundRef.current = sound;
-      await sound.playAsync();
+      const player = createAudioPlayer({ uri: url });
+      playerRef.current = player;
+      player.play();
     } catch (err) {
       console.error('[Audio] Playback failed:', err);
     }
   }, []);
 
-  const stop = useCallback(async () => {
-    if (soundRef.current) {
-      await soundRef.current.stopAsync();
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
+  const stop = useCallback(() => {
+    if (playerRef.current) {
+      playerRef.current.pause();
+      playerRef.current.remove();
+      playerRef.current = null;
     }
   }, []);
 

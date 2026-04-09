@@ -1,5 +1,10 @@
 import { useCallback, useState } from 'react';
-import { Audio } from 'expo-av';
+import {
+  useAudioRecorder,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+} from 'expo-audio';
 import { checkPronunciation } from '../services/api/pronunciation';
 import type { PronunciationCheckResponse } from '../utils/types';
 
@@ -11,36 +16,35 @@ export function usePronunciation() {
   const [isChecking, setIsChecking] = useState(false);
   const [result, setResult] = useState<PronunciationCheckResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   const startRecording = useCallback(async () => {
     try {
       setError(null);
       setResult(null);
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
 
-      const { recording: rec } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
-      );
-      setRecording(rec);
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) throw new Error('Microphone permission not granted');
+
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start recording');
     }
-  }, []);
+  }, [recorder]);
 
   const stopAndCheck = useCallback(
     async (displayText: string, targetIPA: string) => {
-      if (!recording) return null;
-
       try {
         setIsRecording(false);
         setIsChecking(true);
 
-        await recording.stopAndUnloadAsync();
-        const uri = recording.getURI();
-        setRecording(null);
+        await recorder.stop();
+        const uri = recorder.uri;
 
         if (!uri) throw new Error('No recording URI');
 
@@ -74,7 +78,7 @@ export function usePronunciation() {
         setIsChecking(false);
       }
     },
-    [recording],
+    [recorder],
   );
 
   return {
