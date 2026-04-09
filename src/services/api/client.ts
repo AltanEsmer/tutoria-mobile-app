@@ -81,11 +81,6 @@ apiClient.interceptors.response.use(
       }
     }
 
-    if (error.response?.status === 401) {
-      _signOut?.();
-      return Promise.reject(error);
-    }
-
     if (error.response) {
       const { status, data } = error.response;
       console.error(`[API] ${status}: ${data?.error || 'Unknown error'}`);
