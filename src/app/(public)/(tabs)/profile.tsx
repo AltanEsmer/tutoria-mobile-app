@@ -1,5 +1,6 @@
+import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { listProfiles, selectProfile } from '@/services/api';
@@ -55,30 +56,28 @@ function ProfileCard({ profile, isActive, showFeedback, onPress }: ProfileCardPr
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { signOut } = useAuth();
   const { profiles, activeProfile, setProfiles, setActiveProfile } = useProfileStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [feedbackId, setFeedbackId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const data = await listProfiles();
-        if (!cancelled) setProfiles(data);
-      } catch {
-        if (!cancelled) setError('Failed to load profiles. Please try again.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const loadProfiles = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const data = await listProfiles();
+      setProfiles(data);
+    } catch {
+      setError('Failed to load profiles. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
   }, [setProfiles]);
+
+  useEffect(() => {
+    loadProfiles();
+  }, [loadProfiles]);
 
   async function handleSelectProfile(profile: Profile) {
     try {
@@ -103,6 +102,9 @@ export default function ProfileScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>{error}</Text>
+        <Pressable style={styles.retryButton} onPress={loadProfiles}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </Pressable>
       </View>
     );
   }
@@ -111,6 +113,14 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profiles</Text>
+        <Pressable
+          style={styles.signOutButton}
+          onPress={() => signOut()}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+        >
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </Pressable>
       </View>
 
       {profiles.length === 0 ? (
@@ -166,6 +176,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.cream,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGray,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerTitle: {
     fontFamily: 'Lexend_700Bold',
@@ -251,6 +264,21 @@ const styles = StyleSheet.create({
     color: COLORS.coral,
     textAlign: 'center',
   },
+  retryButton: {
+    backgroundColor: '#1F3A5F',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 16,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryButtonText: {
+    fontFamily: 'Lexend_700Bold',
+    fontSize: 15,
+    color: '#FFFFFF',
+  },
   addButton: {
     backgroundColor: COLORS.navy,
     paddingHorizontal: 24,
@@ -269,5 +297,17 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: COLORS.lightGray,
+  },
+  signOutButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.coral,
+  },
+  signOutText: {
+    fontFamily: 'Lexend_700Bold',
+    fontSize: 13,
+    color: COLORS.coral,
   },
 });

@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,12 +29,18 @@ export default function SyllabusScreen() {
   const [error, setError] = useState<string | null>(null);
   const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadStages = useCallback(() => {
+    setError(null);
+    setLoading(true);
     getStages()
       .then(setStages)
       .catch(() => setError('Failed to load syllabus. Please try again.'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadStages();
+  }, [loadStages]);
 
   function toggleStage(stageId: string) {
     setExpandedStageId((prev) => (prev === stageId ? null : stageId));
@@ -56,6 +63,9 @@ export default function SyllabusScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>{error}</Text>
+        <Pressable style={styles.retryButton} onPress={loadStages}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </Pressable>
       </View>
     );
   }
@@ -139,6 +149,21 @@ const styles = StyleSheet.create({
     color: '#E71D36',
     textAlign: 'center',
     paddingHorizontal: 24,
+  },
+  retryButton: {
+    backgroundColor: '#1F3A5F',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 16,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryButtonText: {
+    fontFamily: 'Lexend_700Bold',
+    fontSize: 15,
+    color: '#FFFFFF',
   },
   header: {
     marginBottom: 20,
