@@ -8,13 +8,29 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Lexend_400Regular, Lexend_700Bold } from '@expo-google-fonts/lexend';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { setAuthToken, setTokenGetter } from '@/services/api/client';
 import { tokenCache } from '@/utils/tokenCache';
 import { CLERK_PUBLISHABLE_KEY } from '@/utils/constants';
 
 function RootLayoutInner() {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded, getToken } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Register Clerk's getToken with the Axios request interceptor.
+  // This ensures every API call gets a fresh, auto-refreshed JWT.
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (isSignedIn) {
+      setTokenGetter(() => getToken());
+    } else {
+      setTokenGetter(null);
+      setAuthToken(null);
+    }
+    return () => {
+      setTokenGetter(null);
+    };
+  }, [isSignedIn, isLoaded, getToken]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -25,7 +41,7 @@ function RootLayoutInner() {
     if (!isSignedIn && inPublicGroup) {
       router.replace('/(auth)/sign-in');
     } else if (isSignedIn && inAuthGroup) {
-      router.replace('/(public)/home');
+      router.replace('/(public)/(tabs)/home');
     }
   }, [isLoaded, isSignedIn, segments]);
 

@@ -118,7 +118,7 @@ export default function ProfileScreen() {
           <Text style={styles.emptyText}>No profiles yet</Text>
           <Pressable
             style={styles.addButton}
-            onPress={() => router.push('/(public)/profile/add')}
+            onPress={() => router.push('/profile/add')}
             accessibilityRole="button"
           >
             <Text style={styles.addButtonText}>Add your first profile</Text>
@@ -142,7 +142,7 @@ export default function ProfileScreen() {
           <View style={styles.footer}>
             <Pressable
               style={styles.addButton}
-              onPress={() => router.push('/(public)/profile/add')}
+              onPress={() => router.push('/profile/add')}
               accessibilityRole="button"
             >
               <Text style={styles.addButtonText}>+ Add Profile</Text>

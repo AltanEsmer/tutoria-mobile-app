@@ -3,7 +3,7 @@ import { API_BASE_URL } from '../../utils/constants';
 
 /**
  * Pre-configured Axios instance for the Tutoria API.
- * Auth token injection is handled by the interceptor below.
+ * Auth token injection is handled by the request interceptor below.
  */
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -14,9 +14,21 @@ const apiClient = axios.create({
 });
 
 /**
- * Set the auth token for all subsequent requests.
- * Called after Clerk provides a session token.
+ * A reference to Clerk's getToken function.
+ * Set via setTokenGetter() once Clerk is ready in the root layout.
+ * Using a callback ensures every request gets a fresh, auto-refreshed token.
  */
+let _getToken: (() => Promise<string | null>) | null = null;
+
+/**
+ * Register Clerk's getToken function so the request interceptor can
+ * fetch a fresh JWT before every API call. Pass null to clear on sign-out.
+ */
+export function setTokenGetter(fn: (() => Promise<string | null>) | null): void {
+  _getToken = fn;
+}
+
+/** @deprecated Use setTokenGetter instead. Kept for backward compatibility. */
 export function setAuthToken(token: string | null): void {
   if (token) {
     apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -24,6 +36,17 @@ export function setAuthToken(token: string | null): void {
     delete apiClient.defaults.headers.common['Authorization'];
   }
 }
+
+// Request interceptor — fetches a fresh Clerk JWT before every request
+apiClient.interceptors.request.use(async (config) => {
+  if (_getToken) {
+    const token = await _getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
 
 // Response interceptor for consistent error handling
 apiClient.interceptors.response.use(

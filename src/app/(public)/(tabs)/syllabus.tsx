@@ -41,7 +41,7 @@ export default function SyllabusScreen() {
 
   function handleModulePress(filePath: string) {
     const moduleId = extractModuleId(filePath);
-    router.push(`/(public)/lesson/${moduleId}`);
+    router.push(`/lesson/${moduleId}`);
   }
 
   if (loading) {
