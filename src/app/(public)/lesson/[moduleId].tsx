@@ -6,11 +6,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAudio } from '@/hooks/useAudio';
 import { useHaptics } from '@/hooks/useHaptics';
 import { usePronunciation } from '@/hooks/usePronunciation';
-import { startOrResumeModule, completeWord } from '@/services/api';
+import { completeWord, startOrResumeModule } from '@/services/api';
 import { useLessonStore } from '@/stores/useLessonStore';
 import { useProfileStore } from '@/stores/useProfileStore';
-import { WordDisplay } from '@/components/lesson/WordDisplay';
 import { PronunciationFeedback } from '@/components/lesson/PronunciationFeedback';
+import { WordDisplay } from '@/components/lesson/WordDisplay';
 import type { PronunciationCheckResponse } from '@/utils/types';
 
 const MAX_WORD_ATTEMPTS = 3;
@@ -32,10 +32,11 @@ export default function LessonScreen() {
   const isAdvancingRef = useRef(false);
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ─── Load module on mount ──────────────────────────────────────
+  // ─── Load module on mount ──────────────────────────────────────────────────
   const loadModule = useCallback(async () => {
     if (!activeProfile || !moduleId) return;
     store.setLoading(true);
+    store.setError(null);
     try {
       const session = await startOrResumeModule(moduleId, activeProfile.id);
       store.setSession(session);
@@ -50,6 +51,7 @@ export default function LessonScreen() {
     } finally {
       store.setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [moduleId, activeProfile]);
 
   useEffect(() => {
@@ -64,53 +66,36 @@ export default function LessonScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Auto-play audio on word change ────────────────────────────
+  // ─── Auto-play audio when the current word changes ─────────────────────────
   useEffect(() => {
     if (store.currentWord?.audio_path) {
       audio.setAudioPath(store.currentWord.audio_path);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.currentWordIndex]);
 
-  // ─── Navigate to results on session complete ───────────────────
+  // ─── Navigate to results when session completes ────────────────────────────
   useEffect(() => {
     if (store.sessionComplete && moduleId) {
       store.setCooldown(moduleId);
       router.replace(`/lesson/results?moduleId=${moduleId}`);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.sessionComplete]);
 
-  // ─── Handlers ──────────────────────────────────────────────────
+  // ─── Derived values ────────────────────────────────────────────────────────
   const currentWord = store.currentWord;
   const wordId = currentWord?.id ?? '';
   const attemptCount = store.getAttemptCount(wordId);
-  const attemptsRemaining = MAX_WORD_ATTEMPTS - attemptCount;
+  const attemptsRemaining = Math.max(0, MAX_WORD_ATTEMPTS - attemptCount);
 
-  const handleRecordStop = useCallback(async () => {
-    if (!currentWord) return;
-    const result = await pronunciation.stopAndCheck(
-      currentWord.display_text,
-      currentWord.target_ipa ?? '',
-    );
-    if (result) {
-      const passed = result.overallIsCorrect || result.similarity >= PASSING_THRESHOLD;
-      store.recordAttempt(wordId, passed, result);
-      setFeedbackResult(result);
-
-      if (passed) {
-        await haptics.successHaptic();
-      } else {
-        await haptics.warningHaptic();
-      }
-    }
-  }, [currentWord, wordId, pronunciation, store, haptics]);
-
+  // ─── Advance to the next word ──────────────────────────────────────────────
   const advanceToNextWord = useCallback(
     async (isCorrect: boolean) => {
       if (!moduleId || !activeProfile || !currentWord) return;
       if (isAdvancingRef.current) return;
       isAdvancingRef.current = true;
 
-      // Clear any pending auto-advance timer
       if (autoAdvanceTimerRef.current) {
         clearTimeout(autoAdvanceTimerRef.current);
         autoAdvanceTimerRef.current = null;
@@ -124,38 +109,24 @@ export default function LessonScreen() {
           isCorrect,
         });
       } catch {
-        // API failure is non-blocking — we still advance locally
-        console.warn('[Lesson] completeWord API call failed');
+        // API failure is non-blocking — local state still advances
       } finally {
         setIsSubmitting(false);
       }
 
       store.advanceWord();
+      // Read fresh index from store after advance
       const freshState = useLessonStore.getState();
       const nextWord = freshState.currentSession?.wordData[freshState.currentWordIndex] ?? null;
       store.setCurrentWord(nextWord);
       setFeedbackResult(null);
       isAdvancingRef.current = false;
     },
-    [moduleId, activeProfile, currentWord, store],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [moduleId, activeProfile, currentWord],
   );
 
-  const handleRetry = useCallback(() => {
-    setFeedbackResult(null);
-  }, []);
-
-  const handleNextWord = useCallback(() => {
-    const isPassing =
-      feedbackResult?.overallIsCorrect || (feedbackResult?.similarity ?? 0) >= PASSING_THRESHOLD;
-    advanceToNextWord(!!isPassing);
-  }, [feedbackResult, advanceToNextWord]);
-
-  const handleSkip = useCallback(() => {
-    store.markWordFailed(wordId);
-    advanceToNextWord(false);
-  }, [wordId, store, advanceToNextWord]);
-
-  // ─── Auto-advance after max failed attempts ───────────────────
+  // ─── Auto-advance when word hits max failed attempts ───────────────────────
   useEffect(() => {
     if (attemptCount >= MAX_WORD_ATTEMPTS && store.failedWords.includes(wordId) && feedbackResult) {
       autoAdvanceTimerRef.current = setTimeout(() => {
@@ -168,9 +139,48 @@ export default function LessonScreen() {
         }
       };
     }
-  }, [attemptCount, store.failedWords, wordId, feedbackResult]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptCount, wordId, feedbackResult]);
 
-  // ─── Render states ─────────────────────────────────────────────
+  // ─── Record + check pronunciation ─────────────────────────────────────────
+  const handleRecordStop = useCallback(async () => {
+    if (!currentWord) return;
+    const result = await pronunciation.stopAndCheck(
+      currentWord.display_text,
+      currentWord.target_ipa ?? '',
+    );
+    if (!result) return;
+
+    const passed = result.overallIsCorrect || result.similarity >= PASSING_THRESHOLD;
+    store.recordAttempt(wordId, passed, result);
+    setFeedbackResult(result);
+
+    if (passed) {
+      haptics.successHaptic();
+    } else {
+      haptics.warningHaptic();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWord, wordId]);
+
+  const handleRetry = useCallback(() => {
+    setFeedbackResult(null);
+  }, []);
+
+  const handleNextWord = useCallback(() => {
+    const isPassing =
+      (feedbackResult?.overallIsCorrect ?? false) ||
+      (feedbackResult?.similarity ?? 0) >= PASSING_THRESHOLD;
+    advanceToNextWord(isPassing);
+  }, [feedbackResult, advanceToNextWord]);
+
+  const handleSkip = useCallback(() => {
+    store.markWordFailed(wordId);
+    advanceToNextWord(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wordId, advanceToNextWord]);
+
+  // ─── Loading / error / empty states ───────────────────────────────────────
   if (store.isLoading) {
     return (
       <View style={styles.centered}>
@@ -209,8 +219,10 @@ export default function LessonScreen() {
   }
 
   const progress = ((store.currentWordIndex + 1) / store.currentSession.totalWords) * 100;
-  const isPassing =
-    feedbackResult?.overallIsCorrect || (feedbackResult?.similarity ?? 0) >= PASSING_THRESHOLD;
+  const feedbackIsPassing =
+    (feedbackResult?.overallIsCorrect ?? false) ||
+    (feedbackResult?.similarity ?? 0) >= PASSING_THRESHOLD;
+  const isInteractionDisabled = pronunciation.isChecking || isSubmitting || !!feedbackResult;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -224,7 +236,7 @@ export default function LessonScreen() {
         </Text>
       </View>
 
-      {/* Progress */}
+      {/* Progress bar */}
       <View style={styles.progressSection}>
         <Text style={styles.progressLabel}>
           Word {store.currentWordIndex + 1} of {store.currentSession.totalWords}
@@ -238,8 +250,9 @@ export default function LessonScreen() {
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Word display */}
+        {/* Word */}
         <View style={styles.wordSection}>
           <WordDisplay word={currentWord} isActive />
         </View>
@@ -249,22 +262,25 @@ export default function LessonScreen() {
           Attempt {Math.min(attemptCount + 1, MAX_WORD_ATTEMPTS)} of {MAX_WORD_ATTEMPTS}
         </Text>
 
-        {/* Pronunciation feedback */}
-        {feedbackResult && (
+        {/* Pronunciation feedback panel */}
+        {feedbackResult ? (
           <PronunciationFeedback
             result={feedbackResult}
             onRetry={handleRetry}
             onNextWord={handleNextWord}
-            isPassing={!!isPassing}
+            isPassing={feedbackIsPassing}
             attemptsRemaining={attemptsRemaining}
           />
-        )}
+        ) : null}
       </ScrollView>
 
       {/* Action buttons */}
       <View style={styles.actionsSection}>
         <Pressable
-          style={[styles.actionButton, audio.isLoading && styles.disabledButton]}
+          style={[
+            styles.actionButton,
+            (audio.isLoading || !currentWord.audio_path) && styles.disabledButton,
+          ]}
           disabled={audio.isLoading || !currentWord.audio_path}
           onPress={() => audio.play(currentWord.audio_path ?? '')}
         >
@@ -275,24 +291,28 @@ export default function LessonScreen() {
           style={[
             styles.actionButton,
             styles.recordButton,
-            (pronunciation.isChecking || isSubmitting || !!feedbackResult) && styles.disabledButton,
+            isInteractionDisabled && styles.disabledButton,
           ]}
-          disabled={pronunciation.isChecking || isSubmitting || !!feedbackResult}
+          disabled={isInteractionDisabled}
           onPressIn={pronunciation.startRecording}
           onPressOut={handleRecordStop}
         >
           <Text style={styles.actionButtonText}>
-            {pronunciation.isChecking ? 'Checking…' : '🎙️ Record'}
+            {pronunciation.isChecking
+              ? 'Checking…'
+              : pronunciation.isRecording
+                ? '🔴 Recording'
+                : '🎙️ Hold to Record'}
           </Text>
         </Pressable>
       </View>
 
-      {/* Skip button */}
-      {!feedbackResult && !pronunciation.isChecking && (
+      {/* Skip button — hidden while feedback is showing or checking */}
+      {!feedbackResult && !pronunciation.isChecking ? (
         <Pressable style={styles.skipButton} onPress={handleSkip}>
           <Text style={styles.skipText}>Skip word ⏭️</Text>
         </Pressable>
-      )}
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -313,7 +333,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
     marginTop: 8,
   },
   backButton: {
@@ -376,8 +396,8 @@ const styles = StyleSheet.create({
   actionsSection: {
     flexDirection: 'row',
     gap: 16,
-    paddingBottom: 8,
     paddingTop: 16,
+    paddingBottom: 8,
   },
   actionButton: {
     flex: 1,
@@ -394,7 +414,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   actionButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Lexend_700Bold',
     color: '#FFFFFF',
   },
