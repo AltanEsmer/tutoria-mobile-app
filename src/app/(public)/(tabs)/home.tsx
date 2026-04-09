@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { getMissions } from '@/services/api';
+import { cleanupNfc } from '@/services/nfc';
 import { useProfileStore } from '@/stores/useProfileStore';
 import { useLessonStore } from '@/stores/useLessonStore';
+import { useNfc } from '@/hooks/useNfc';
 import { MissionCard } from '@/components/ui/MissionCard';
 import { NfcPrompt } from '@/components/nfc/NfcPrompt';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -13,6 +16,8 @@ import type { Mission } from '@/utils/types';
 export default function HomeScreen() {
   const activeProfile = useProfileStore((s) => s.activeProfile);
   const currentSession = useLessonStore((s) => s.currentSession);
+
+  const { isScanning, isSupported, isEnabled, error: nfcError, scan } = useNfc();
 
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,6 +48,33 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, [activeProfile]);
+
+  const handleNfcScan = useCallback(async () => {
+    const tag = await scan();
+    if (tag && tag.isValid && tag.moduleId) {
+      try {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      } catch {
+        // haptics unavailable
+      }
+      router.push(`/lesson/${tag.moduleId}`);
+    } else if (tag && !tag.isValid) {
+      Alert.alert('Invalid Card', 'This NFC card is not recognised. Please try another card.');
+    }
+  }, [scan]);
+
+  const handleManualSubmit = useCallback((moduleId: string) => {
+    router.push(`/lesson/${moduleId}`);
+  }, []);
+
+  // Stop any open NFC session when navigating away (tabs stay mounted)
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        cleanupNfc();
+      };
+    }, []),
+  );
 
   const greeting = getGreeting();
 
@@ -111,7 +143,14 @@ export default function HomeScreen() {
         {/* NFC prompt when no active lesson */}
         {activeProfile && !currentSession && !loading && (
           <View style={styles.section}>
-            <NfcPrompt />
+            <NfcPrompt
+              onScan={handleNfcScan}
+              onManualSubmit={handleManualSubmit}
+              isScanning={isScanning}
+              nfcSupported={isSupported}
+              nfcEnabled={isEnabled}
+              error={nfcError}
+            />
           </View>
         )}
       </ScrollView>
