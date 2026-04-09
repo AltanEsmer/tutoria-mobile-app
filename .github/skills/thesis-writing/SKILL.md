@@ -1,6 +1,7 @@
 ---
 name: thesis-writing
-description: Expert assistant for writing SDU bachelor thesis sections in LaTeX. Covers all chapters of the Software Engineering bachelor project report: Abstract, Introduction, Project Background, Problem Statement, Proposed Solution, Implementation, Software Engineering Practices, Discussion, Conclusion, and Appendix. Use when drafting, expanding, or reviewing any thesis chapter or section.
+description: |
+  Expert assistant for writing SDU bachelor thesis sections in LaTeX. Covers all chapters of the Software Engineering bachelor project report: Abstract, Introduction, Project Background, Problem Statement, Proposed Solution, Implementation, Software Engineering Practices, Discussion, Conclusion, and Appendix. Use when drafting, expanding, or reviewing any thesis chapter or section.
 ---
 
 # Thesis Writing — SDU Bachelor Project
