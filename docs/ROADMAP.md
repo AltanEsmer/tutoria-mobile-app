@@ -30,21 +30,24 @@
 | TypeScript types & constants | ✅ Complete | |
 | Services (8 API modules + NFC) | ✅ Complete | |
 | Zustand stores (auth, profile, lesson, nfc, progress) | ✅ Complete | |
-| Custom hooks (useNfc, useAudio, usePronunciation) | ✅ Complete | All three hooks fully implemented |
+| Custom hooks (useNfc, useAudio, usePronunciation, useHaptics) | ✅ Complete | All four hooks fully implemented |
 | Root layout | ✅ Complete | Providers, auth guard, hydration, error boundary wired |
 | Auth screens (sign-in, sign-up, forgot-password) | ✅ Complete | |
 | Public screens (home, lesson, progress, profile, syllabus) | ✅ Complete | All Phase 2 screens fully implemented |
 | Components (lesson / nfc / progress / ui) | ✅ Complete | All component files populated |
-| Testing infrastructure | 🔴 None | |
+| Testing infrastructure | 🔴 None | Planned for Phase 5 |
 | Persistent auth (expo-secure-store) | ✅ Complete | Clerk `tokenCache` implemented via SecureStore |
-| Offline progress queue | 🔴 None | Documented but not implemented |
-| Error boundaries | ✅ Complete | `ErrorBoundary` component wraps root layout |
+| Offline progress queue | 🔴 None | Phase 4 — not yet implemented |
+| Error boundaries | ⚠️ Partial | `ErrorBoundary` wraps root layout; per-tab wrapping not done |
 | tsconfig path aliases (`@/`) | ✅ Complete | Configured in `tsconfig.json` and Babel module resolver |
-| NFC scan → navigation | 🔴 Not started | `useNfc` hook ready; `NfcPrompt` is static display only |
-| Haptic feedback | 🔴 Not started | Not yet wired anywhere |
-| Module session lifecycle (completeWord / results) | 🔴 Not started | Load works; completion flow and results screen missing |
-| Pronunciation feedback display | 🔴 Not started | Hook works; score/feedback UI not shown in lesson screen |
-| Word attempt limits | 🔴 Not started | |
+| NFC scan → navigation | ✅ Complete | `handleNfcScan` in Home wired to `useNfc`; navigates to lesson; `NfcRing` animation active |
+| Haptic feedback | ✅ Complete | `useHaptics` wired for correct/incorrect pronunciation and NFC detection |
+| Module session lifecycle (completeWord / results) | ✅ Complete | Per-word API calls, word loop, `sessionComplete` → results screen with confetti |
+| completeSession API call | ⚠️ Missing | Session marked complete locally; no POST to backend at end of module |
+| Pronunciation feedback display | ✅ Complete | `PronunciationFeedback` component shown inline with score, retry, next-word actions |
+| Word attempt limits | ✅ Complete | Max 3 attempts; auto-advance on 3 failures; 12 h cooldown (in-memory — not persisted) |
+| Curriculum/lesson caching | 🔴 None | Phase 4 — not yet implemented |
+| Network state / offline banner | 🔴 None | Phase 4 — not yet implemented |
 
 ---
 
@@ -144,36 +147,36 @@ None — this is the starting phase.
 
 ### Deliverables
 
-- [ ] **NFC scan → lesson launch**:
+- [x] **NFC scan → lesson launch**:
   - `useNfc` hook ✅ — polls for tag scan; extracts `moduleId` from NDEF payload.
-  - [ ] Wire `useNfc.scan()` inside `NfcPrompt` (or Home screen) so a successful scan navigates to `/(public)/lesson/[moduleId]`.
-  - [ ] Show animated NFC ring graphic on Home screen while scanning.
-  - [ ] Handle NFC unavailable / NFC disabled gracefully (already partially handled in `useNfc`).
-- [ ] **Audio playback**:
+  - [x] Wire `useNfc.scan()` inside Home screen so a successful scan navigates to `/(public)/lesson/[moduleId]`.
+  - [x] Show animated `NfcRing` graphic on Home screen while scanning.
+  - [x] Handle NFC unavailable / NFC disabled gracefully — manual lesson-code text input fallback shown.
+- [x] **Audio playback**:
   - `useAudio` hook ✅ — play/stop via `expo-av` `Audio.Sound`.
   - Play button wired in lesson screen ✅.
-  - [ ] Auto-play word audio when a new word is displayed.
-  - [ ] Show loading indicator while audio asset is fetching.
-- [ ] **Pronunciation recording + AI feedback**:
+  - [x] Auto-play word audio when a new word is displayed (via `useEffect` on `currentWordIndex`).
+  - [x] Show loading indicator (`⏳`) while audio asset is fetching.
+- [x] **Pronunciation recording + AI feedback**:
   - `usePronunciation` hook ✅ — records via `expo-av`, uploads to backend, returns score.
   - Record button wired in lesson screen ✅.
-  - [ ] Display feedback inline: score badge + short feedback message after `stopAndCheck` resolves.
-  - [ ] Retry button on upload failure.
-- [ ] **Haptic feedback**:
-  - [ ] Correct pronunciation: `Haptics.notificationAsync(NotificationFeedbackType.Success)`.
-  - [ ] Incorrect pronunciation: `Haptics.notificationAsync(NotificationFeedbackType.Warning)`.
-  - [ ] NFC card detected: `Haptics.impactAsync(ImpactFeedbackStyle.Medium)`.
-  - [ ] Button taps (primary actions): `Haptics.impactAsync(ImpactFeedbackStyle.Light)`.
-- [ ] **Module session lifecycle**:
+  - [x] Display feedback inline: `PronunciationFeedback` component with score badge and feedback message.
+  - [x] Retry/skip actions available after feedback.
+- [x] **Haptic feedback** (`useHaptics` hook implemented and wired):
+  - [x] Correct pronunciation: `Haptics.notificationAsync(NotificationFeedbackType.Success)`.
+  - [x] Incorrect pronunciation: `Haptics.notificationAsync(NotificationFeedbackType.Warning)`.
+  - [x] NFC card detected: `Haptics.impactAsync(ImpactFeedbackStyle.Medium)`.
+  - [ ] Button taps (primary actions): `buttonTapHaptic` exists but not wired to button `onPress` handlers.
+- [x] **Module session lifecycle**:
   - `startOrResumeModule` wired in lesson screen ✅.
-  1. [ ] `completeWord(wordId, attempts, passed)` — store action, POST to progress API.
-  2. [ ] Word-by-word loop — advance word index on successful pronunciation or manual skip.
-  3. [ ] `completeSession()` — POST module completion to API, update progress store, navigate to results screen.
-  4. [ ] Results screen: words attempted, words passed, session score, confetti animation.
-- [ ] **Word attempt limits**:
-  - [ ] Max 3 attempts per word per session.
-  - [ ] 3 failed attempts: mark word as `failed`, advance automatically.
-  - [ ] 12-hour cooldown (timestamp in progress store + AsyncStorage).
+  1. [x] `completeWord(wordId, attempts, passed)` — POST to backend per word; store advances locally on API failure.
+  2. [x] Word-by-word loop — `advanceWord` in store; `setCurrentWord` syncs displayed word.
+  3. [ ] `completeSession()` — **missing**: no POST to backend when all words finish; session marked complete locally only; progress store not updated.
+  4. [x] Results screen: word breakdown, session score, confetti animation (≥ 80%), try-again / back-home actions.
+- [x] **Word attempt limits**:
+  - [x] Max 3 attempts per word per session (`MAX_WORD_ATTEMPTS = 3`).
+  - [x] 3 failed attempts: mark word as `failed`, auto-advance after 2-second delay.
+  - [x] 12-hour cooldown tracked via `isModuleOnCooldown` / `setCooldown` in lesson store (in-memory only — not persisted; AsyncStorage not yet installed).
 
 ### Dependencies
 
@@ -181,12 +184,14 @@ None — this is the starting phase.
 
 ### Acceptance Criteria
 
-- [ ] Tapping an NFC card navigates to the correct lesson and begins audio playback.
-- [ ] Audio plays automatically for each word; play button replays on demand.
-- [ ] Pronunciation recording uploads successfully; score and feedback appear within 5 seconds.
-- [ ] After 3 failed attempts on a word the session advances automatically and the word is marked failed.
-- [ ] Completing all words in a module navigates to the results screen and updates the progress dashboard.
-- [ ] Haptics fire on all specified interactions (verified manually on physical device).
+- [x] Tapping an NFC card navigates to the correct lesson and begins audio playback.
+- [x] Audio plays automatically for each word; play button replays on demand.
+- [x] Pronunciation recording uploads successfully; score and feedback appear within 5 seconds.
+- [x] After 3 failed attempts on a word the session advances automatically and the word is marked failed.
+- [x] Completing all words in a module navigates to the results screen.
+- [ ] Results screen updates the progress dashboard (requires `completeSession` API call — not yet implemented).
+- [x] Haptics fire on correct/incorrect pronunciation and NFC detection (verified via `useHaptics`).
+- [ ] Button-tap haptics wired on all primary action buttons.
 
 ### Key Technical Notes
 
@@ -220,13 +225,14 @@ None — this is the starting phase.
   - Expose `isOnline` boolean via a `useNetworkState` hook.
   - Show a non-blocking banner ("You're offline — progress will sync when reconnected") when `isOnline` is false.
 - [ ] **Error boundaries**:
-  - `src/components/ui/ErrorBoundary.tsx` — class component implementing `componentDidCatch`; renders a "Something went wrong" fallback UI with a retry button.
-  - Wrap each tab screen in its own `<ErrorBoundary>` so a crash in one tab does not affect others.
-  - Log caught errors to console (and Sentry in Phase 6).
+  - `src/components/ui/ErrorBoundary.tsx` — ✅ class component with `componentDidCatch`; renders "Something went wrong" fallback with retry button.
+  - ✅ Root layout wrapped in `<ErrorBoundary>`.
+  - [ ] Wrap each **tab screen** in its own `<ErrorBoundary>` so a crash in one tab does not affect others.
+  - [ ] Log caught errors to console (and Sentry in Phase 6).
 - [ ] **Graceful NFC/audio degradation**:
-  - NFC unavailable: hide scan prompt on Home, show "Enter lesson code manually" text input as fallback.
-  - Audio load failure: show error icon on audio button; do not block lesson progress.
-  - Pronunciation upload failure: show retry button; allow skipping pronunciation step after 2 consecutive upload failures.
+  - ✅ NFC unavailable: manual "Enter lesson code" text input shown in `NfcPrompt`.
+  - [ ] Audio load failure: show error icon on audio button; do not block lesson progress.
+  - [ ] Pronunciation upload failure: show retry button; allow skipping pronunciation step after 2 consecutive upload failures.
 
 ### Dependencies
 
@@ -408,10 +414,16 @@ Phases are strictly sequential. No phase should begin until its predecessor's ac
 
 ---
 
-## Immediate Next Actions (Phase 1 Validation)
+## Immediate Next Actions
 
-1. Run `npx tsc --noEmit` and confirm zero errors.
-2. Cold-launch with no session and verify redirect to `/(auth)/sign-in`.
-3. Complete sign-in, kill/relaunch app, and verify session persistence.
-4. Trigger sign-out and verify redirect back to sign-in.
-5. Intentionally submit invalid auth inputs and verify Clerk field-level error UX.
+### Remaining Phase 3 gaps (complete before moving to Phase 4)
+
+1. **`completeSession` API call** — when `sessionComplete` becomes `true` in the lesson screen, POST module completion to the backend (e.g., `PUT /v1/modules/:moduleId/complete`) and update the progress store so the progress dashboard reflects the finished module.
+2. **Button-tap haptics** — call `buttonTapHaptic()` inside the `onPress` of Play, Record, Skip, and navigation buttons in the lesson screen.
+
+### Phase 4 starting point
+
+3. Wrap each tab screen in its own `<ErrorBoundary>` (update `src/app/(public)/(tabs)/_layout.tsx`).
+4. Install `@react-native-community/netinfo`, create `useNetworkState` hook, add offline banner.
+5. Implement the offline progress queue (Zustand `persist` + `AsyncStorage`); drain on reconnect.
+6. Add curriculum/lesson caching with 24-hour TTL.
