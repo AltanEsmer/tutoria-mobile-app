@@ -10,8 +10,21 @@ import {
   View,
 } from 'react-native';
 
-import { getStages } from '@/services/api';
+import { getStages, getStagesCacheInfo } from '@/services/api';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { CURRICULUM_CACHE_TTL } from '@/utils/constants';
 import type { Stage } from '@/utils/types';
+
+function formatTimeAgo(timestamp: number): string {
+  const diffMs = Date.now() - timestamp;
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+}
 
 function extractModuleName(filePath: string): string {
   const filename = filePath.split('/').pop()?.replace('.json', '') ?? filePath;
@@ -23,17 +36,38 @@ function extractModuleId(filePath: string): string {
 }
 
 export default function SyllabusScreen() {
+  return (
+    <ErrorBoundary>
+      <SyllabusScreenContent />
+    </ErrorBoundary>
+  );
+}
+
+function SyllabusScreenContent() {
   const router = useRouter();
   const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
+  const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
+  const [isStale, setIsStale] = useState(false);
 
   const loadStages = useCallback(() => {
     setError(null);
+    setIsStale(false);
     setLoading(true);
+
     getStages()
-      .then(setStages)
+      .then(async (result) => {
+        setStages(result);
+        const cacheInfo = await getStagesCacheInfo();
+        if (cacheInfo) {
+          setCacheTimestamp(cacheInfo.timestamp);
+          // If the cached entry is past its TTL, getStages() served stale fallback
+          const staleServed = Date.now() - cacheInfo.timestamp > CURRICULUM_CACHE_TTL;
+          setIsStale(staleServed);
+        }
+      })
       .catch(() => setError('Failed to load syllabus. Please try again.'))
       .finally(() => setLoading(false));
   }, []);
@@ -72,9 +106,20 @@ export default function SyllabusScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {isStale && cacheTimestamp !== null && (
+        <View style={styles.staleBanner}>
+          <Text style={styles.staleBannerText}>
+            Showing cached data · Last updated {formatTimeAgo(cacheTimestamp)}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.header}>
         <Text style={styles.title}>Curriculum</Text>
         <Text style={styles.subtitle}>Explore phonics stages and modules</Text>
+        {!isStale && cacheTimestamp !== null && (
+          <Text style={styles.lastUpdated}>Last updated {formatTimeAgo(cacheTimestamp)}</Text>
+        )}
       </View>
 
       {stages.map((stage) => {
@@ -180,6 +225,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2B2D42',
     opacity: 0.7,
+  },
+  lastUpdated: {
+    fontFamily: 'Lexend_400Regular',
+    fontSize: 12,
+    color: '#2B2D42',
+    opacity: 0.5,
+    marginTop: 4,
+  },
+  staleBanner: {
+    backgroundColor: '#FFF3CD',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FFCA28',
+  },
+  staleBannerText: {
+    fontFamily: 'Lexend_400Regular',
+    fontSize: 13,
+    color: '#7A5C00',
   },
   card: {
     backgroundColor: '#FFFFFF',

@@ -188,6 +188,29 @@ export interface NfcScanState {
   error: string | null;
 }
 
+// ─── Offline & Cache ────────────────────────────────────────────
+
+export interface OfflineQueueItem {
+  id: string;
+  type: 'completeWord' | 'completeSession' | 'saveProgress';
+  endpoint: string;
+  payload: Record<string, unknown>;
+  createdAt: number;
+  retryCount: number;
+}
+
+export interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number;
+}
+
+export interface NetworkState {
+  isOnline: boolean;
+  isInternetReachable: boolean | null;
+  connectionType: string | null;
+}
+
 // ─── API Common ─────────────────────────────────────────────────
 
 export interface ApiError {

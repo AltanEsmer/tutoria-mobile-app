@@ -7,13 +7,18 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Lexend_400Regular, Lexend_700Bold } from '@expo-google-fonts/lexend';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { OfflineBanner } from '@/components/ui/OfflineBanner';
+import { useNetworkState } from '@/hooks/useNetworkState';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useNetworkStore } from '@/stores/useNetworkStore';
+import { useProgressStore } from '@/stores/useProgressStore';
 import { setAuthToken, setTokenGetter, setSignOutHandler } from '@/services/api/client';
 import { tokenCache } from '@/utils/tokenCache';
 import { CLERK_PUBLISHABLE_KEY } from '@/utils/constants';
 
 function RootLayoutInner() {
   const { isSignedIn, isLoaded, getToken, signOut } = useAuth();
+  useNetworkState();
   const segments = useSegments();
   const router = useRouter();
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -55,6 +60,16 @@ function RootLayoutInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn, isLoaded]);
 
+  // Drain offline queue when connectivity is restored
+  const isOnline = useNetworkStore((s) => s.isOnline);
+  const prevOnlineRef = useRef(isOnline);
+  useEffect(() => {
+    if (isOnline && !prevOnlineRef.current) {
+      useProgressStore.getState().drainQueue();
+    }
+    prevOnlineRef.current = isOnline;
+  }, [isOnline]);
+
   useEffect(() => {
     if (!isLoaded) return;
 
@@ -76,7 +91,12 @@ function RootLayoutInner() {
     );
   }
 
-  return <Slot />;
+  return (
+    <>
+      <OfflineBanner />
+      <Slot />
+    </>
+  );
 }
 
 export default function RootLayout() {

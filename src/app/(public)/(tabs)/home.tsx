@@ -8,12 +8,21 @@ import { cleanupNfc } from '@/services/nfc';
 import { useProfileStore } from '@/stores/useProfileStore';
 import { useLessonStore } from '@/stores/useLessonStore';
 import { useNfc } from '@/hooks/useNfc';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { MissionCard } from '@/components/ui/MissionCard';
 import { NfcPrompt } from '@/components/nfc/NfcPrompt';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import type { Mission } from '@/utils/types';
 
 export default function HomeScreen() {
+  return (
+    <ErrorBoundary>
+      <HomeScreenContent />
+    </ErrorBoundary>
+  );
+}
+
+function HomeScreenContent() {
   const activeProfile = useProfileStore((s) => s.activeProfile);
   const currentSession = useLessonStore((s) => s.currentSession);
 

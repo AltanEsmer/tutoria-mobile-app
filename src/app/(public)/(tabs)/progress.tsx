@@ -4,11 +4,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getProgress } from '@/services/api';
 import { useProgressStore } from '@/stores/useProgressStore';
 import { useProfileStore } from '@/stores/useProfileStore';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { StreakBadge } from '@/components/progress/StreakBadge';
 import { WeeklyChart } from '@/components/progress/WeeklyChart';
 import { ActivityList } from '@/components/progress/ActivityList';
 
 export default function ProgressScreen() {
+  return (
+    <ErrorBoundary>
+      <ProgressScreenContent />
+    </ErrorBoundary>
+  );
+}
+
+function ProgressScreenContent() {
   const activeProfile = useProfileStore((s) => s.activeProfile);
   const activities = useProgressStore((s) => s.activities);
   const streakDays = useProgressStore((s) => s.streakDays);

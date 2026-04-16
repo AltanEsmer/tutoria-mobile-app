@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createAudioPlayer } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
 import { getAudioProxyUrl } from '../services/api/audio';
+import { getCachedAudioUri } from '../services/cache';
 
 interface UseAudioOptions {
   /** When true, calling `setAudioPath` will immediately trigger playback. */
@@ -40,8 +41,10 @@ export function useAudio(options?: UseAudioOptions) {
       setAudioError(null);
       try {
         cleanupPlayer();
-        const url = getAudioProxyUrl(r2Path);
-        const player = createAudioPlayer({ uri: url });
+        // Cache-first: check local cache before network
+        const cachedUri = await getCachedAudioUri(r2Path);
+        const uri = cachedUri ?? getAudioProxyUrl(r2Path);
+        const player = createAudioPlayer({ uri });
         playerRef.current = player;
         player.play();
       } catch (err) {

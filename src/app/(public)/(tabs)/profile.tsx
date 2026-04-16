@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { listProfiles, selectProfile } from '@/services/api';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useProfileStore } from '@/stores/useProfileStore';
 import type { Profile } from '@/utils/types';
 
@@ -55,6 +56,14 @@ function ProfileCard({ profile, isActive, showFeedback, onPress }: ProfileCardPr
 }
 
 export default function ProfileScreen() {
+  return (
+    <ErrorBoundary>
+      <ProfileScreenContent />
+    </ErrorBoundary>
+  );
+}
+
+function ProfileScreenContent() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { profiles, activeProfile, setProfiles, setActiveProfile } = useProfileStore();

@@ -37,8 +37,8 @@
 | Components (lesson / nfc / progress / ui) | ✅ Complete | All component files populated |
 | Testing infrastructure | 🔴 None | Planned for Phase 5 |
 | Persistent auth (expo-secure-store) | ✅ Complete | Clerk `tokenCache` implemented via SecureStore |
-| Offline progress queue | 🔴 None | Phase 4 — not yet implemented |
-| Error boundaries | ⚠️ Partial | `ErrorBoundary` wraps root layout; per-tab wrapping not done |
+| Offline progress queue | ✅ Complete | Zustand persist + AsyncStorage; auto-drain on reconnect |
+| Error boundaries | ✅ Complete | Root + per-tab ErrorBoundary isolation |
 | tsconfig path aliases (`@/`) | ✅ Complete | Configured in `tsconfig.json` and Babel module resolver |
 | NFC scan → navigation | ✅ Complete | `handleNfcScan` in Home wired to `useNfc`; navigates to lesson; `NfcRing` animation active |
 | Haptic feedback | ✅ Complete | `useHaptics` wired for correct/incorrect pronunciation and NFC detection |
@@ -46,8 +46,10 @@
 | completeSession API call | ⚠️ Missing | Session marked complete locally; no POST to backend at end of module |
 | Pronunciation feedback display | ✅ Complete | `PronunciationFeedback` component shown inline with score, retry, next-word actions |
 | Word attempt limits | ✅ Complete | Max 3 attempts; auto-advance on 3 failures; 12 h cooldown (in-memory — not persisted) |
-| Curriculum/lesson caching | 🔴 None | Phase 4 — not yet implemented |
-| Network state / offline banner | 🔴 None | Phase 4 — not yet implemented |
+| Curriculum/lesson caching | ✅ Complete | Cache-first syllabus/module fetches with 24h TTL and stale fallback |
+| Network state / offline banner | ✅ Complete | NetInfo + useNetworkState hook + animated OfflineBanner |
+| Audio pre-fetching | ✅ Complete | First 3 words prefetched on module load; cache-first playback |
+| Graceful degradation | ✅ Complete | Audio error icon; pronunciation skip after 2 consecutive failures |
 
 ---
 
@@ -208,31 +210,31 @@ None — this is the starting phase.
 
 ### Deliverables
 
-- [ ] **Offline progress queue**:
+- [x] **Offline progress queue**:
   - When a `completeWord` or `completeSession` API call fails due to no network, push the payload to an `offlineQueue` array in the progress store.
   - Persist `offlineQueue` to `AsyncStorage` via Zustand `persist`.
   - On reconnect (NetInfo event), drain the queue: replay each queued request in order, remove on success.
   - Queue indicator in UI (e.g., small badge on Progress tab) when queue is non-empty.
-- [ ] **Curriculum/lesson caching**:
+- [x] **Curriculum/lesson caching**:
   - Cache fetched syllabus, stage, and module data in `AsyncStorage` with a TTL (24 hours).
   - On fetch failure, serve stale cache with a "last updated X ago" notice.
   - Cache key scheme: `cache:syllabus:{id}`, `cache:module:{id}`.
-- [ ] **Audio asset pre-fetching**:
+- [x] **Audio asset pre-fetching**:
   - When a module is loaded, pre-fetch audio URLs for the first 3 words using `expo-file-system` `downloadAsync` into the cache directory.
   - `useAudio` hook checks local cache before making a network request for an asset.
-- [ ] **Network state detection**:
+- [x] **Network state detection**:
   - Install and configure `@react-native-community/netinfo`.
   - Expose `isOnline` boolean via a `useNetworkState` hook.
   - Show a non-blocking banner ("You're offline — progress will sync when reconnected") when `isOnline` is false.
-- [ ] **Error boundaries**:
+- [x] **Error boundaries**:
   - `src/components/ui/ErrorBoundary.tsx` — ✅ class component with `componentDidCatch`; renders "Something went wrong" fallback with retry button.
   - ✅ Root layout wrapped in `<ErrorBoundary>`.
-  - [ ] Wrap each **tab screen** in its own `<ErrorBoundary>` so a crash in one tab does not affect others.
-  - [ ] Log caught errors to console (and Sentry in Phase 6).
-- [ ] **Graceful NFC/audio degradation**:
+  - [x] Wrap each **tab screen** in its own `<ErrorBoundary>` so a crash in one tab does not affect others.
+  - [x] Log caught errors to console (and Sentry in Phase 6).
+- [x] **Graceful NFC/audio degradation**:
   - ✅ NFC unavailable: manual "Enter lesson code" text input shown in `NfcPrompt`.
-  - [ ] Audio load failure: show error icon on audio button; do not block lesson progress.
-  - [ ] Pronunciation upload failure: show retry button; allow skipping pronunciation step after 2 consecutive upload failures.
+  - [x] Audio load failure: show error icon on audio button; do not block lesson progress.
+  - [x] Pronunciation upload failure: show retry button; allow skipping pronunciation step after 2 consecutive upload failures.
 
 ### Dependencies
 
@@ -240,11 +242,11 @@ None — this is the starting phase.
 
 ### Acceptance Criteria
 
-- [ ] Putting the device in airplane mode mid-session: word completions queue locally and sync automatically on reconnect.
-- [ ] Opening the syllabus browser offline serves cached data (if previously fetched).
-- [ ] A thrown error inside a screen renders the ErrorBoundary fallback, not a blank screen or RN red box.
-- [ ] Offline banner appears within 2 seconds of losing connectivity and dismisses on reconnect.
-- [ ] Lesson can be completed (with skipped audio) when audio assets are unavailable.
+- [x] Putting the device in airplane mode mid-session: word completions queue locally and sync automatically on reconnect.
+- [x] Opening the syllabus browser offline serves cached data (if previously fetched).
+- [x] A thrown error inside a screen renders the ErrorBoundary fallback, not a blank screen or RN red box.
+- [x] Offline banner appears within 2 seconds of losing connectivity and dismisses on reconnect.
+- [x] Lesson can be completed (with skipped audio) when audio assets are unavailable.
 
 ### Key Technical Notes
 

@@ -7,11 +7,14 @@ import { useAudio } from '@/hooks/useAudio';
 import { useHaptics } from '@/hooks/useHaptics';
 import { usePronunciation } from '@/hooks/usePronunciation';
 import { completeWord, startOrResumeModule } from '@/services/api';
+import { prefetchAudioFiles } from '@/services/cache';
 import { useLessonStore } from '@/stores/useLessonStore';
 import { useProfileStore } from '@/stores/useProfileStore';
+import { useProgressStore } from '@/stores/useProgressStore';
 import { PronunciationFeedback } from '@/components/lesson/PronunciationFeedback';
 import { WordDisplay } from '@/components/lesson/WordDisplay';
 import type { PronunciationCheckResponse } from '@/utils/types';
+import { MAX_PREFETCH_WORDS } from '@/utils/constants';
 
 const MAX_WORD_ATTEMPTS = 3;
 const PASSING_THRESHOLD = 80;
@@ -45,6 +48,14 @@ export default function LessonScreen() {
       if (startWord?.audio_path) {
         audio.setAudioPath(startWord.audio_path);
       }
+      // Pre-fetch audio for upcoming words (best-effort)
+      const audioPaths = session.wordData
+        .slice(0, MAX_PREFETCH_WORDS)
+        .map((w) => w.audio_path)
+        .filter((p): p is string => !!p);
+      prefetchAudioFiles(audioPaths).catch(() => {
+        // Audio pre-fetch is best-effort
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load lesson';
       store.setError(message);
@@ -109,7 +120,16 @@ export default function LessonScreen() {
           isCorrect,
         });
       } catch {
-        // API failure is non-blocking — local state still advances
+        // Queue failed request for offline sync
+        useProgressStore.getState().addToQueue({
+          type: 'completeWord',
+          endpoint: `/v1/modules/${moduleId}/word`,
+          payload: {
+            profileId: activeProfile.id,
+            wordId: currentWord.id,
+            isCorrect,
+          },
+        });
       } finally {
         setIsSubmitting(false);
       }
@@ -277,14 +297,13 @@ export default function LessonScreen() {
       {/* Action buttons */}
       <View style={styles.actionsSection}>
         <Pressable
-          style={[
-            styles.actionButton,
-            (audio.isLoading || !currentWord.audio_path) && styles.disabledButton,
-          ]}
-          disabled={audio.isLoading || !currentWord.audio_path}
+          style={[styles.actionButton, audio.isLoading && styles.disabledButton]}
+          disabled={audio.isLoading}
           onPress={() => audio.play(currentWord.audio_path ?? '')}
         >
-          <Text style={styles.actionButtonText}>{audio.isLoading ? '⏳' : '🔊'} Play</Text>
+          <Text style={styles.actionButtonText}>
+            {audio.isLoading ? '⏳' : audio.audioError ? '⚠️' : '🔊'} Play
+          </Text>
         </Pressable>
 
         <Pressable
@@ -311,6 +330,14 @@ export default function LessonScreen() {
       {!feedbackResult && !pronunciation.isChecking ? (
         <Pressable style={styles.skipButton} onPress={handleSkip}>
           <Text style={styles.skipText}>Skip word ⏭️</Text>
+        </Pressable>
+      ) : null}
+
+      {pronunciation.canSkipPronunciation && !feedbackResult && !pronunciation.isChecking ? (
+        <Pressable style={styles.skipPronunciationButton} onPress={handleSkip}>
+          <Text style={styles.skipPronunciationText}>
+            Pronunciation unavailable — Skip to next word
+          </Text>
         </Pressable>
       ) : null}
     </SafeAreaView>
@@ -427,6 +454,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Lexend_400Regular',
     color: '#6B7280',
+  },
+  skipPronunciationButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  skipPronunciationText: {
+    fontSize: 13,
+    fontFamily: 'Lexend_400Regular',
+    color: '#92400E',
   },
   errorText: {
     fontSize: 16,

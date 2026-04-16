@@ -1,4 +1,5 @@
-import apiClient from './client';
+import { getCache, setCache, getCacheEntry } from '../cache';
+import { MODULE_CACHE_TTL } from '../../utils/constants';
 import type {
   Mission,
   ModuleStatus,
@@ -7,12 +8,24 @@ import type {
   WordCompletionResponse,
   BatchModuleStatusRequest,
 } from '../../utils/types';
+import apiClient from './client';
 
 export async function getMissions(profileId: string): Promise<Mission[]> {
-  const { data } = await apiClient.get<Mission[]>('/v1/modules/missions', {
-    params: { profileId },
-  });
-  return data;
+  const key = `cache:missions:${profileId}`;
+  const cached = await getCache<Mission[]>(key);
+  if (cached) return cached;
+
+  try {
+    const { data } = await apiClient.get<Mission[]>('/v1/modules/missions', {
+      params: { profileId },
+    });
+    await setCache(key, data, MODULE_CACHE_TTL);
+    return data;
+  } catch (err) {
+    const stale = await getCacheEntry<Mission[]>(key);
+    if (stale) return stale.data;
+    throw err;
+  }
 }
 
 export async function getModuleStatus(moduleId: string, profileId: string): Promise<ModuleStatus> {
@@ -26,8 +39,23 @@ export async function startOrResumeModule(
   moduleId: string,
   profileId: string,
 ): Promise<SessionData> {
-  const { data } = await apiClient.post<SessionData>(`/v1/modules/${moduleId}`, { profileId });
-  return data;
+  const key = `cache:module:${profileId}:${moduleId}`;
+  try {
+    const { data } = await apiClient.post<SessionData>(`/v1/modules/${moduleId}`, { profileId });
+    await setCache(key, data, MODULE_CACHE_TTL);
+    return data;
+  } catch (err) {
+    const stale = await getCacheEntry<SessionData>(key);
+    if (stale) return stale.data;
+    throw err;
+  }
+}
+
+export async function getCachedSession(
+  moduleId: string,
+  profileId: string,
+): Promise<SessionData | null> {
+  return getCache<SessionData>(`cache:module:${profileId}:${moduleId}`);
 }
 
 export async function completeWord(

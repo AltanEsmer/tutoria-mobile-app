@@ -6,6 +6,7 @@ import {
   setAudioModeAsync,
 } from 'expo-audio';
 import { checkPronunciation } from '../services/api/pronunciation';
+import { MAX_PRONUNCIATION_FAILURES } from '../utils/constants';
 import type { PronunciationCheckResponse } from '../utils/types';
 
 /**
@@ -16,6 +17,9 @@ export function usePronunciation() {
   const [isChecking, setIsChecking] = useState(false);
   const [result, setResult] = useState<PronunciationCheckResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [consecutiveFailures, setConsecutiveFailures] = useState(0);
+
+  const canSkipPronunciation = consecutiveFailures >= MAX_PRONUNCIATION_FAILURES;
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
@@ -69,10 +73,18 @@ export function usePronunciation() {
         });
 
         setResult(checkResult);
+        setConsecutiveFailures(0);
         return checkResult;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Pronunciation check failed';
-        setError(message);
+      } catch {
+        setConsecutiveFailures((prev) => {
+          const next = prev + 1;
+          setError(
+            next >= MAX_PRONUNCIATION_FAILURES
+              ? 'Pronunciation check unavailable. You can skip this step.'
+              : 'Upload failed. Try again or skip.',
+          );
+          return next;
+        });
         return null;
       } finally {
         setIsChecking(false);
@@ -81,12 +93,19 @@ export function usePronunciation() {
     [recorder],
   );
 
+  const resetFailures = useCallback(() => {
+    setConsecutiveFailures(0);
+  }, []);
+
   return {
     isRecording,
     isChecking,
     result,
     error,
+    consecutiveFailures,
+    canSkipPronunciation,
     startRecording,
     stopAndCheck,
+    resetFailures,
   };
 }
