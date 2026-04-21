@@ -13,15 +13,15 @@ name: "Sign Up Form Navigation"
 # Try password mismatch
 - tapOn:
     id: "sign-up-email-input"
-- clearText
+- eraseText
 - inputText: "newuser@example.com"
 - tapOn:
     id: "sign-up-password-input"
-- clearText
+- eraseText
 - inputText: "Password123!"
 - tapOn:
     id: "sign-up-confirm-password-input"
-- clearText
+- eraseText
 - inputText: "DifferentPassword123!"
 - hideKeyboard
 - tapOn:

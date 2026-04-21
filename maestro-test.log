@@ -1,0 +1,22 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by org.fusesource.jansi.internal.JansiLoader in an unnamed module (file:/Users/altanesmer/.maestro/lib/jansi-2.4.1.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+
+> Invalid Command: clearText
+
+/Users/altanesmer/Desktop/Projects/tutoria-mobile-app/.maestro/flows/auth-sign-in.yaml:15
+╭───────────────────────────────────────────────────────╮
+│ 13 | - tapOn:                                         │
+│ 14 |     id: "sign-in-email-input"                    │
+│ 15 | - clearText                                      │
+│                ^                                      │
+│ ╭───────────────────────────────────────────────────╮ │
+│ │ `clearText` is not a valid command.               │ │
+│ │                                                   │ │
+│ │ > https://docs.maestro.dev/api-reference/commands │ │
+│ ╰───────────────────────────────────────────────────╯ │
+│ 16 | - inputText: ${TEST_EMAIL}                       │
+│ 17 | - tapOn:                                         │
+╰───────────────────────────────────────────────────────╯

@@ -4,16 +4,16 @@ name: "Progress Streak Badge"
 - launchApp
 - assertVisible:
     text: "Good"
-    timeout: 5000
+    waitUntilVisible: 5000
 - tapOn:
     text: "Progress"
 - assertVisible:
     id: "progress-screen"
-    timeout: 5000
+    waitUntilVisible: 5000
 # Streak badge should be visible
 - assertVisible:
     id: "streak-badge"
-    timeout: 3000
+    waitUntilVisible: 3000
 - assertVisible:
     id: "streak-badge-count"
 - assertVisible:

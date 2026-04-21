@@ -7,11 +7,11 @@ name: "Sign In Error Flow"
     text: "Welcome back"
 - tapOn:
     id: "sign-in-email-input"
-- clearText
+- eraseText
 - inputText: "invalid@example.com"
 - tapOn:
     id: "sign-in-password-input"
-- clearText
+- eraseText
 - inputText: "wrongpassword"
 - hideKeyboard
 - tapOn:
@@ -19,4 +19,4 @@ name: "Sign In Error Flow"
 # Should show error
 - assertVisible:
     id: "sign-in-error-text"
-    timeout: 3000
+    waitUntilVisible: 3000

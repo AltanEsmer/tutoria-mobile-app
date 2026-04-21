@@ -4,13 +4,13 @@ name: "Profile Screen"
 - launchApp
 - assertVisible:
     text: "Good"
-    timeout: 5000
+    waitUntilVisible: 5000
 # Navigate to Profile tab
 - tapOn:
     text: "Profile"
 - assertVisible:
     id: "profile-screen"
-    timeout: 3000
+    waitUntilVisible: 3000
 # Verify key elements
 - assertVisible:
     id: "profile-header-title"

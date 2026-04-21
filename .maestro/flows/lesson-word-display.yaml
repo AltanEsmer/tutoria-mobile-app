@@ -4,20 +4,20 @@ name: "Lesson Word Display"
 - launchApp
 - assertVisible:
     text: "Good"
-    timeout: 5000
+    waitUntilVisible: 5000
 - assertVisible:
     id: "nfc-prompt-manual-card"
-    timeout: 3000
+    waitUntilVisible: 3000
 - tapOn:
     id: "nfc-prompt-manual-input"
-- clearText
+- eraseText
 - inputText: "module-001"
 - hideKeyboard
 - tapOn:
     id: "nfc-prompt-start-lesson-button"
 - assertVisible:
     id: "lesson-screen"
-    timeout: 8000
+    waitUntilVisible: 8000
 # Verify word is displayed
 - assertVisible:
     id: "word-display-card"

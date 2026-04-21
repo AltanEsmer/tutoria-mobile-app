@@ -9,4 +9,4 @@ name: "Results Screen Back to Home"
 # App should land on home after loading
 - assertVisible:
     text: "Good"
-    timeout: 5000
+    waitUntilVisible: 5000

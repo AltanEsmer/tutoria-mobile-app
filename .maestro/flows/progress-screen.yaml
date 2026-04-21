@@ -4,13 +4,13 @@ name: "Progress Screen"
 - launchApp
 - assertVisible:
     text: "Good"
-    timeout: 5000
+    waitUntilVisible: 5000
 # Navigate to Progress tab
 - tapOn:
     text: "Progress"
 - assertVisible:
     id: "progress-screen"
-    timeout: 5000
+    waitUntilVisible: 5000
 # Verify title is visible
 - assertVisible:
     id: "progress-title"
