@@ -12,53 +12,37 @@ import { useNetworkState } from '@/hooks/useNetworkState';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useNetworkStore } from '@/stores/useNetworkStore';
 import { useProgressStore } from '@/stores/useProgressStore';
-import { setAuthToken, setTokenGetter, setSignOutHandler } from '@/services/api/client';
+import { setSignOutHandler } from '@/services/api/client';
 import { tokenCache } from '@/utils/tokenCache';
 import { CLERK_PUBLISHABLE_KEY } from '@/utils/constants';
 
 function RootLayoutInner() {
-  const { isSignedIn, isLoaded, getToken, signOut } = useAuth();
+  const { isSignedIn, isLoaded, signOut } = useAuth();
   useNetworkState();
   const segments = useSegments();
   const router = useRouter();
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   // Refs keep the latest functions without re-triggering the effect on every render.
-  // getToken / signOut can change reference when Clerk refreshes internally.
-  const getTokenRef = useRef(getToken);
+  // signOut can change reference when Clerk refreshes internally.
   const signOutRef = useRef(signOut);
   const routerRef = useRef(router);
   // Sync refs after every render so effects always read the latest value.
   useEffect(() => {
-    getTokenRef.current = getToken;
     signOutRef.current = signOut;
     routerRef.current = router;
   });
 
-  // Register the token getter once when auth state changes.
-  // Using refs avoids the race condition where cleanup (setTokenGetter(null)) briefly
-  // fires mid-navigation, causing unauthenticated requests and 401 errors.
   useEffect(() => {
     if (!isLoaded) return;
 
     async function setupAuth() {
       if (isSignedIn) {
-        setTokenGetter(async () => {
-          const token = await getTokenRef.current();
-          if (__DEV__ && !token) {
-            console.warn(
-              '[Auth] getToken() returned null — verify EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY matches the backend Clerk instance',
-            );
-          }
-          return token;
-        });
         setSignOutHandler(() => {
           signOutRef.current();
           routerRef.current.replace('/(auth)/sign-in');
         });
       } else {
-        setTokenGetter(null);
-        setAuthToken(null);
         setSignOutHandler(null);
       }
       setIsAuthReady(true);
