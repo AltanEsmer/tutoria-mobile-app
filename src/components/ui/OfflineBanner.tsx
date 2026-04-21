@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNetworkStore } from '../../stores/useNetworkStore';
@@ -8,7 +8,7 @@ const BANNER_HEIGHT = 44;
 export function OfflineBanner(): React.ReactElement | null {
   const isOnline = useNetworkStore((s) => s.isOnline);
   const insets = useSafeAreaInsets();
-  const translateY = useRef(new Animated.Value(-BANNER_HEIGHT)).current;
+  const [translateY] = useState(() => new Animated.Value(-BANNER_HEIGHT));
 
   useEffect(() => {
     Animated.timing(translateY, {

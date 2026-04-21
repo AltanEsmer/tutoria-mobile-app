@@ -36,22 +36,22 @@ function HomeScreenContent() {
     if (!activeProfile) return;
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
-    getMissions(activeProfile.id)
-      .then((data) => {
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getMissions(activeProfile.id);
         if (!cancelled) {
           const sorted = [...data].sort((a, b) => a.priority - b.priority);
           setMissions(sorted.slice(0, 3));
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setError('Could not load missions. Please try again.');
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;

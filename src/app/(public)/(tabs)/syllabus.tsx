@@ -52,24 +52,24 @@ function SyllabusScreenContent() {
   const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
   const [isStale, setIsStale] = useState(false);
 
-  const loadStages = useCallback(() => {
+  const loadStages = useCallback(async () => {
     setError(null);
     setIsStale(false);
     setLoading(true);
-
-    getStages()
-      .then(async (result) => {
-        setStages(result);
-        const cacheInfo = await getStagesCacheInfo();
-        if (cacheInfo) {
-          setCacheTimestamp(cacheInfo.timestamp);
-          // If the cached entry is past its TTL, getStages() served stale fallback
-          const staleServed = Date.now() - cacheInfo.timestamp > CURRICULUM_CACHE_TTL;
-          setIsStale(staleServed);
-        }
-      })
-      .catch(() => setError('Failed to load syllabus. Please try again.'))
-      .finally(() => setLoading(false));
+    try {
+      const result = await getStages();
+      setStages(result);
+      const cacheInfo = await getStagesCacheInfo();
+      if (cacheInfo) {
+        setCacheTimestamp(cacheInfo.timestamp);
+        const staleServed = Date.now() - cacheInfo.timestamp > CURRICULUM_CACHE_TTL;
+        setIsStale(staleServed);
+      }
+    } catch {
+      setError('Failed to load syllabus. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

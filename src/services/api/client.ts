@@ -78,6 +78,8 @@ apiClient.interceptors.response.use(
         error.config.headers.Authorization = `Bearer ${freshToken}`;
         error.config._isRetry = true;
         return apiClient(error.config);
+      } else {
+        _signOut?.();
       }
     }
 

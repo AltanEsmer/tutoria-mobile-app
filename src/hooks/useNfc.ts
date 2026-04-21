@@ -7,42 +7,57 @@ import { initNfc, isNfcEnabled, readTag, cleanupNfc } from '../services/nfc';
  * Initializes NFC on mount and provides scan/cleanup methods.
  */
 export function useNfc() {
-  const store = useNfcStore();
+  // Individual selectors keep refs stable — avoids re-running effects on unrelated state updates
+  const setSupported = useNfcStore((s) => s.setSupported);
+  const setEnabled = useNfcStore((s) => s.setEnabled);
+  const setScanning = useNfcStore((s) => s.setScanning);
+  const setError = useNfcStore((s) => s.setError);
+  const setLastTag = useNfcStore((s) => s.setLastTag);
+
+  const isScanning = useNfcStore((s) => s.isScanning);
+  const isSupported = useNfcStore((s) => s.isSupported);
+  const isEnabled = useNfcStore((s) => s.isEnabled);
+  const error = useNfcStore((s) => s.error);
+  const lastTag = useNfcStore((s) => s.lastTag);
 
   useEffect(() => {
     (async () => {
       const supported = await initNfc();
-      store.setSupported(supported);
+      setSupported(supported);
       if (supported) {
         const enabled = await isNfcEnabled();
-        store.setEnabled(enabled);
+        setEnabled(enabled);
       }
     })();
 
     return () => {
       cleanupNfc();
     };
-  }, []);
+  }, [setSupported, setEnabled]);
 
   const scan = useCallback(async () => {
-    store.setScanning(true);
-    store.setError(null);
+    setScanning(true);
+    setError(null);
 
     try {
       const tag = await readTag();
-      store.setLastTag(tag);
+      setLastTag(tag);
       return tag;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'NFC scan failed';
-      store.setError(message);
+      setError(message);
       return null;
     } finally {
-      store.setScanning(false);
+      setScanning(false);
     }
-  }, []);
+  }, [setScanning, setError, setLastTag]);
 
   return {
-    ...store,
+    isScanning,
+    isSupported,
+    isEnabled,
+    error,
+    lastTag,
     scan,
   };
 }

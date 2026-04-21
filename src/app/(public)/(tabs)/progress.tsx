@@ -42,7 +42,7 @@ function ProgressScreenContent() {
           setActivities(data.activities);
           setStreakDays(data.streakDays);
         }
-      } catch (err) {
+      } catch {
         if (!cancelled) {
           setError('Failed to load progress. Please try again.');
         }
@@ -56,7 +56,7 @@ function ProgressScreenContent() {
     return () => {
       cancelled = true;
     };
-  }, [activeProfile?.id]);
+  }, [activeProfile, setActivities, setLoading, setStreakDays]);
 
   if (!activeProfile) {
     return (

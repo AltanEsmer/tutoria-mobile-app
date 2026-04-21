@@ -26,7 +26,7 @@ export function useNetworkState() {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [setNetworkState]);
 
   return { isOnline, isInternetReachable, connectionType };
 }

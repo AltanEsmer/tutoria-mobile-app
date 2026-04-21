@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
 interface NfcRingProps {
@@ -9,9 +9,9 @@ interface NfcRingProps {
  * Animated pulsing concentric rings shown while NFC scanning is in progress.
  */
 export function NfcRing({ isScanning }: NfcRingProps) {
-  const ring1 = useRef(new Animated.Value(0)).current;
-  const ring2 = useRef(new Animated.Value(0)).current;
-  const ring3 = useRef(new Animated.Value(0)).current;
+  const [ring1] = useState(() => new Animated.Value(0));
+  const [ring2] = useState(() => new Animated.Value(0));
+  const [ring3] = useState(() => new Animated.Value(0));
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {

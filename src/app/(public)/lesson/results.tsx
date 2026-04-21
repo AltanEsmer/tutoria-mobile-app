@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Animated, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -29,7 +29,7 @@ function buildConfetti(): ConfettiItem[] {
 }
 
 function ConfettiLayer() {
-  const items = useRef<ConfettiItem[]>(buildConfetti()).current;
+  const [items] = useState<ConfettiItem[]>(() => buildConfetti());
 
   useEffect(() => {
     const animations = items.map((item) =>

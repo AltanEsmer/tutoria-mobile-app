@@ -28,36 +28,43 @@ function RootLayoutInner() {
   const getTokenRef = useRef(getToken);
   const signOutRef = useRef(signOut);
   const routerRef = useRef(router);
-  getTokenRef.current = getToken;
-  signOutRef.current = signOut;
-  routerRef.current = router;
+  // Sync refs after every render so effects always read the latest value.
+  useEffect(() => {
+    getTokenRef.current = getToken;
+    signOutRef.current = signOut;
+    routerRef.current = router;
+  });
 
   // Register the token getter once when auth state changes.
   // Using refs avoids the race condition where cleanup (setTokenGetter(null)) briefly
   // fires mid-navigation, causing unauthenticated requests and 401 errors.
   useEffect(() => {
     if (!isLoaded) return;
-    if (isSignedIn) {
-      setTokenGetter(async () => {
-        const token = await getTokenRef.current();
-        if (__DEV__ && !token) {
-          console.warn(
-            '[Auth] getToken() returned null — verify EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY matches the backend Clerk instance',
-          );
-        }
-        return token;
-      });
-      setSignOutHandler(() => {
-        signOutRef.current();
-        routerRef.current.replace('/(auth)/sign-in');
-      });
-    } else {
-      setTokenGetter(null);
-      setAuthToken(null);
-      setSignOutHandler(null);
+
+    async function setupAuth() {
+      if (isSignedIn) {
+        setTokenGetter(async () => {
+          const token = await getTokenRef.current();
+          if (__DEV__ && !token) {
+            console.warn(
+              '[Auth] getToken() returned null — verify EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY matches the backend Clerk instance',
+            );
+          }
+          return token;
+        });
+        setSignOutHandler(() => {
+          signOutRef.current();
+          routerRef.current.replace('/(auth)/sign-in');
+        });
+      } else {
+        setTokenGetter(null);
+        setAuthToken(null);
+        setSignOutHandler(null);
+      }
+      setIsAuthReady(true);
     }
-    setIsAuthReady(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    setupAuth();
   }, [isSignedIn, isLoaded]);
 
   // Drain offline queue when connectivity is restored
@@ -81,7 +88,7 @@ function RootLayoutInner() {
     } else if (isSignedIn && inAuthGroup) {
       router.replace('/(public)/(tabs)/home');
     }
-  }, [isLoaded, isSignedIn, segments]);
+  }, [isLoaded, isSignedIn, segments, router]);
 
   if (!isLoaded || !isAuthReady) {
     return (

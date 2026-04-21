@@ -1,0 +1,19 @@
+#!/bin/sh
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+echo "🚀 Running pre-push TypeScript type check..."
+
+cd "$(git rev-parse --show-toplevel)"
+
+npx tsc --noEmit
+
+if [ $? -ne 0 ]; then
+  echo "${RED}❌ TypeScript type errors found. Push aborted. Fix the errors above and try again.${NC}"
+  exit 1
+fi
+
+echo "${GREEN}✅ TypeScript check passed!${NC}"
+exit 0
