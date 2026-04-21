@@ -1,0 +1,28 @@
+appId: ac.tutoria.mobile
+name: "Sign In Flow"
+env:
+  TEST_EMAIL: ${TEST_EMAIL}
+  TEST_PASSWORD: ${TEST_PASSWORD}
+---
+- launchApp:
+    clearState: true
+# Wait for sign-in screen
+- assertVisible:
+    text: "Welcome back"
+# Enter credentials
+- tapOn:
+    id: "sign-in-email-input"
+- clearText
+- inputText: ${TEST_EMAIL}
+- tapOn:
+    id: "sign-in-password-input"
+- clearText
+- inputText: ${TEST_PASSWORD}
+- hideKeyboard
+# Submit
+- tapOn:
+    id: "sign-in-submit-button"
+# Verify navigation to home (the app redirects to home after sign in)
+- assertVisible:
+    text: "Good"  # Matches "Good morning/afternoon/evening"
+    timeout: 5000

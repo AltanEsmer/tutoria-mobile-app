@@ -1,0 +1,26 @@
+appId: ac.tutoria.mobile
+name: "Tab Navigation Flow"
+---
+- launchApp
+# Should be on Home tab
+- assertVisible:
+    text: "Good"
+    timeout: 5000
+# Navigate to Progress tab
+- tapOn:
+    text: "Progress"
+- assertVisible:
+    text: "Your Progress"
+    timeout: 3000
+# Navigate to Profile tab
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    text: "Profiles"
+    timeout: 3000
+# Navigate back to Home
+- tapOn:
+    text: "Home"
+- assertVisible:
+    text: "Good"
+    timeout: 3000

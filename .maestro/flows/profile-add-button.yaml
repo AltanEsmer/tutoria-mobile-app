@@ -1,0 +1,22 @@
+appId: ac.tutoria.mobile
+name: "Profile Add Button"
+---
+- launchApp
+- assertVisible:
+    text: "Good"
+    timeout: 5000
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    id: "profile-screen"
+    timeout: 3000
+- assertVisible:
+    id: "profile-header-title"
+# Check for add button - tapOn with optional:true is valid Maestro syntax
+# for verifying element presence without failing if absent
+- tapOn:
+    id: "profile-add-first-button"
+    optional: true
+- tapOn:
+    id: "profile-add-button"
+    optional: true

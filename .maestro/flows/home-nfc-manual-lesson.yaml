@@ -1,0 +1,22 @@
+appId: ac.tutoria.mobile
+name: "Start Lesson via Manual Code Entry"
+---
+- launchApp
+- assertVisible:
+    text: "Good"
+    timeout: 5000
+# In simulator/emulator NFC is not available, so manual entry is shown
+- assertVisible:
+    id: "nfc-prompt-manual-card"
+    timeout: 3000
+- tapOn:
+    id: "nfc-prompt-manual-input"
+- clearText
+- inputText: "module-001"
+- hideKeyboard
+- tapOn:
+    id: "nfc-prompt-start-lesson-button"
+# Should navigate to lesson screen
+- assertVisible:
+    text: "Word 1 of"
+    timeout: 5000

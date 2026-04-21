@@ -7,6 +7,7 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
+  testID?: string;
 }
 
 export function Button({
@@ -16,6 +17,7 @@ export function Button({
   disabled = false,
   loading = false,
   style,
+  testID,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
@@ -34,6 +36,7 @@ export function Button({
         ]}
         accessibilityRole="button"
         accessibilityState={{ disabled: isDisabled }}
+        testID={testID}
       >
         {loading ? (
           <ActivityIndicator color={variant === 'outline' ? '#1F3A5F' : '#FFFFFF'} size="small" />

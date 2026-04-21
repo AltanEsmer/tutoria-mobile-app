@@ -61,8 +61,10 @@ function ProgressScreenContent() {
   if (!activeProfile) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centered}>
-          <Text style={styles.emptyStateText}>Select a profile to see progress</Text>
+        <View testID="progress-no-profile-container" style={styles.centered}>
+          <Text testID="progress-no-profile-text" style={styles.emptyStateText}>
+            Select a profile to see progress
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -71,7 +73,7 @@ function ProgressScreenContent() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centered}>
+        <View testID="progress-loading-container" style={styles.centered}>
           <ActivityIndicator size="large" color="#FF9F1C" />
         </View>
       </SafeAreaView>
@@ -81,28 +83,36 @@ function ProgressScreenContent() {
   if (error) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centered}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View testID="progress-error-container" style={styles.centered}>
+          <Text testID="progress-error-text" style={styles.errorText}>
+            {error}
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView testID="progress-screen" style={styles.safeArea}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Your Progress</Text>
+        <Text testID="progress-title" style={styles.title}>
+          Your Progress
+        </Text>
 
         <StreakBadge streakDays={streakDays} />
 
-        <Text style={styles.sectionTitle}>Weekly Activity</Text>
+        <Text testID="progress-weekly-title" style={styles.sectionTitle}>
+          Weekly Activity
+        </Text>
         <WeeklyChart activities={activities} />
 
-        <Text style={styles.sectionTitle}>Words Practiced</Text>
+        <Text testID="progress-words-title" style={styles.sectionTitle}>
+          Words Practiced
+        </Text>
         <ActivityList activities={activities} />
       </ScrollView>
     </SafeAreaView>

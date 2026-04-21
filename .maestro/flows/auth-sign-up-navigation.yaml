@@ -1,0 +1,36 @@
+appId: ac.tutoria.mobile
+name: "Sign Up Form Navigation"
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    text: "Welcome back"
+# Navigate to sign-up
+- tapOn:
+    id: "sign-in-signup-link"
+- assertVisible:
+    text: "Create an account"
+# Try password mismatch
+- tapOn:
+    id: "sign-up-email-input"
+- clearText
+- inputText: "newuser@example.com"
+- tapOn:
+    id: "sign-up-password-input"
+- clearText
+- inputText: "Password123!"
+- tapOn:
+    id: "sign-up-confirm-password-input"
+- clearText
+- inputText: "DifferentPassword123!"
+- hideKeyboard
+- tapOn:
+    id: "sign-up-submit-button"
+# Should show password mismatch error
+- assertVisible:
+    id: "sign-up-error-text"
+# Go back to sign-in
+- tapOn:
+    id: "sign-up-signin-link"
+- assertVisible:
+    text: "Welcome back"

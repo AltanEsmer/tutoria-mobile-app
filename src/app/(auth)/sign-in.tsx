@@ -54,6 +54,7 @@ export default function SignInScreen() {
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
+          testID="sign-in-email-input"
         />
         <TextInput
           style={styles.input}
@@ -63,14 +64,20 @@ export default function SignInScreen() {
           onChangeText={setPassword}
           secureTextEntry
           autoComplete="password"
+          testID="sign-in-password-input"
         />
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? (
+          <Text style={styles.errorText} testID="sign-in-error-text">
+            {error}
+          </Text>
+        ) : null}
 
         <Pressable
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleSignIn}
           disabled={loading}
+          testID="sign-in-submit-button"
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -79,13 +86,17 @@ export default function SignInScreen() {
           )}
         </Pressable>
 
-        <Link href="/(auth)/forgot-password" style={styles.linkText}>
+        <Link
+          href="/(auth)/forgot-password"
+          style={styles.linkText}
+          testID="sign-in-forgot-password-link"
+        >
           Forgot password?
         </Link>
 
         <View style={styles.signUpRow}>
           <Text style={styles.signUpPrompt}>Don&apos;t have an account? </Text>
-          <Link href="/(auth)/sign-up" style={styles.linkText}>
+          <Link href="/(auth)/sign-up" style={styles.linkText} testID="sign-in-signup-link">
             Sign up
           </Link>
         </View>

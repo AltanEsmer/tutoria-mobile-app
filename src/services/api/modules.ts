@@ -73,6 +73,10 @@ export async function abandonModule(moduleId: string, profileId: string): Promis
   await apiClient.delete(`/v1/modules/${moduleId}`, { params: { profileId } });
 }
 
+export async function completeSession(moduleId: string, profileId: string): Promise<void> {
+  await apiClient.post(`/v1/modules/${moduleId}/complete`, { profileId });
+}
+
 export async function batchModuleStatus(
   req: BatchModuleStatusRequest,
 ): Promise<Record<string, Omit<ModuleStatus, 'sessionData' | 'cooldownEndsAt'>>> {

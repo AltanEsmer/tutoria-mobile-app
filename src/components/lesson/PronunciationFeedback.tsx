@@ -60,13 +60,20 @@ export function PronunciationFeedback({
 
   return (
     <Animated.View
+      testID="pronunciation-feedback-container"
       style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
     >
-      <Text style={styles.encouragement}>{encouragement}</Text>
+      <Text testID="pronunciation-feedback-encouragement" style={styles.encouragement}>
+        {encouragement}
+      </Text>
 
       <ScoreBadge score={result.similarity} size={100} />
 
-      {result.feedback ? <Text style={styles.feedback}>{result.feedback}</Text> : null}
+      {result.feedback ? (
+        <Text testID="pronunciation-feedback-text" style={styles.feedback}>
+          {result.feedback}
+        </Text>
+      ) : null}
 
       {result.errorType ? (
         <View style={styles.errorChip}>
@@ -74,7 +81,7 @@ export function PronunciationFeedback({
         </View>
       ) : null}
 
-      <Text style={styles.attempts}>
+      <Text testID="pronunciation-feedback-attempts" style={styles.attempts}>
         {attemptsRemaining > 0
           ? `${attemptsRemaining} attempt${attemptsRemaining === 1 ? '' : 's'} remaining`
           : 'No attempts remaining'}
@@ -82,12 +89,20 @@ export function PronunciationFeedback({
 
       <View style={styles.buttonRow}>
         {showRetry ? (
-          <TouchableOpacity style={[styles.button, styles.retryButton]} onPress={onRetry}>
+          <TouchableOpacity
+            testID="pronunciation-feedback-retry-button"
+            style={[styles.button, styles.retryButton]}
+            onPress={onRetry}
+          >
             <Text style={styles.buttonText}>Try Again 🔄</Text>
           </TouchableOpacity>
         ) : null}
         {!showRetry ? (
-          <TouchableOpacity style={[styles.button, styles.nextButton]} onPress={onNextWord}>
+          <TouchableOpacity
+            testID="pronunciation-feedback-next-button"
+            style={[styles.button, styles.nextButton]}
+            onPress={onNextWord}
+          >
             <Text style={styles.buttonText}>Next Word ➡️</Text>
           </TouchableOpacity>
         ) : null}

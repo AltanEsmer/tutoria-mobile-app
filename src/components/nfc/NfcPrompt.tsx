@@ -45,7 +45,7 @@ export function NfcPrompt({
   // NFC not supported — manual code entry fallback
   if (!nfcSupported) {
     return (
-      <View style={styles.card}>
+      <View style={styles.card} testID="nfc-prompt-manual-card">
         <Text style={styles.emoji}>⌨️</Text>
         <Text style={styles.heading}>Enter lesson code manually</Text>
         <Text style={styles.body}>
@@ -61,12 +61,14 @@ export function NfcPrompt({
           autoCorrect={false}
           returnKeyType="go"
           onSubmitEditing={handleManualSubmit}
+          testID="nfc-prompt-manual-input"
         />
         <Pressable
           style={[styles.actionButton, !manualCode.trim() && styles.disabledButton]}
           onPress={handleManualSubmit}
           disabled={!manualCode.trim()}
           accessibilityRole="button"
+          testID="nfc-prompt-start-lesson-button"
         >
           <Text style={styles.actionButtonText}>Start Lesson</Text>
         </Pressable>
@@ -77,7 +79,7 @@ export function NfcPrompt({
   // NFC supported but disabled in device settings
   if (!nfcEnabled) {
     return (
-      <View style={styles.card}>
+      <View style={styles.card} testID="nfc-prompt-disabled-card">
         <Text style={styles.emoji}>📵</Text>
         <Text style={styles.heading}>NFC is disabled</Text>
         <Text style={styles.body}>Please enable NFC in your device settings to scan cards.</Text>
@@ -85,6 +87,7 @@ export function NfcPrompt({
           style={styles.actionButton}
           onPress={handleOpenSettings}
           accessibilityRole="button"
+          testID="nfc-prompt-open-settings-button"
         >
           <Text style={styles.actionButtonText}>Open Settings</Text>
         </Pressable>
@@ -98,6 +101,7 @@ export function NfcPrompt({
       onPress={!isScanning ? onScan : undefined}
       accessibilityRole="button"
       accessibilityLabel={isScanning ? 'Scanning for NFC card' : 'Tap to scan NFC card'}
+      testID="nfc-prompt-scan-button"
     >
       {isScanning ? (
         <>
@@ -113,7 +117,11 @@ export function NfcPrompt({
         </>
       )}
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error ? (
+        <Text style={styles.errorText} testID="nfc-prompt-error-text">
+          {error}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }

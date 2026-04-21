@@ -77,14 +77,20 @@ export default function SignUpScreen() {
             onChangeText={setCode}
             keyboardType="number-pad"
             maxLength={6}
+            testID="sign-up-code-input"
           />
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? (
+            <Text style={styles.errorText} testID="sign-up-verify-error-text">
+              {error}
+            </Text>
+          ) : null}
 
           <Pressable
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleVerify}
             disabled={loading}
+            testID="sign-up-verify-button"
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
@@ -93,7 +99,7 @@ export default function SignUpScreen() {
             )}
           </Pressable>
 
-          <Pressable onPress={() => setStep('form')}>
+          <Pressable onPress={() => setStep('form')} testID="sign-up-back-button">
             <Text style={styles.linkText}>← Back</Text>
           </Pressable>
         </View>
@@ -119,6 +125,7 @@ export default function SignUpScreen() {
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
+          testID="sign-up-email-input"
         />
         <TextInput
           style={styles.input}
@@ -128,6 +135,7 @@ export default function SignUpScreen() {
           onChangeText={setPassword}
           secureTextEntry
           autoComplete="new-password"
+          testID="sign-up-password-input"
         />
         <TextInput
           style={styles.input}
@@ -137,14 +145,20 @@ export default function SignUpScreen() {
           onChangeText={setConfirmPassword}
           secureTextEntry
           autoComplete="new-password"
+          testID="sign-up-confirm-password-input"
         />
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? (
+          <Text style={styles.errorText} testID="sign-up-error-text">
+            {error}
+          </Text>
+        ) : null}
 
         <Pressable
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleSignUp}
           disabled={loading}
+          testID="sign-up-submit-button"
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -155,7 +169,7 @@ export default function SignUpScreen() {
 
         <View style={styles.signInRow}>
           <Text style={styles.signInPrompt}>Already have an account? </Text>
-          <Link href="/(auth)/sign-in" style={styles.linkText}>
+          <Link href="/(auth)/sign-in" style={styles.linkText} testID="sign-up-signin-link">
             Sign in
           </Link>
         </View>

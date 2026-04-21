@@ -1,0 +1,3 @@
+# Maestro workspace configuration
+flows:
+  - flows/*.yaml

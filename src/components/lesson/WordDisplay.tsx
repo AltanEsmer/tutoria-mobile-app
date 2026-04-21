@@ -10,9 +10,15 @@ interface WordDisplayProps {
 
 export function WordDisplay({ word, isActive: _isActive }: WordDisplayProps) {
   return (
-    <View style={styles.card}>
-      <Text style={styles.displayText}>{word.display_text}</Text>
-      {word.target_ipa ? <Text style={styles.ipaText}>/{word.target_ipa}/</Text> : null}
+    <View testID="word-display-card" style={styles.card}>
+      <Text testID="word-display-text" style={styles.displayText}>
+        {word.display_text}
+      </Text>
+      {word.target_ipa ? (
+        <Text testID="word-display-ipa" style={styles.ipaText}>
+          /{word.target_ipa}/
+        </Text>
+      ) : null}
     </View>
   );
 }

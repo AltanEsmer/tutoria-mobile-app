@@ -18,9 +18,9 @@ export function MissionCard({ mission, onPress }: MissionCardProps) {
   const badgeColor = LABEL_COLORS[mission.label];
 
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID="mission-card">
       <View style={styles.header}>
-        <Text style={styles.moduleName} numberOfLines={1}>
+        <Text style={styles.moduleName} numberOfLines={1} testID="mission-card-name">
           {mission.moduleName}
         </Text>
         <View style={[styles.badge, { backgroundColor: badgeColor }]}>
@@ -34,7 +34,13 @@ export function MissionCard({ mission, onPress }: MissionCardProps) {
 
       <View style={styles.footer}>
         <Text style={styles.wordsLeft}>{mission.wordsLeft}</Text>
-        <Button title="Start" onPress={onPress} variant="primary" style={styles.startButton} />
+        <Button
+          title="Start"
+          onPress={onPress}
+          variant="primary"
+          style={styles.startButton}
+          testID="mission-card-start"
+        />
       </View>
     </View>
   );

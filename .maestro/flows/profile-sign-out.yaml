@@ -1,0 +1,19 @@
+appId: ac.tutoria.mobile
+name: "Profile Sign Out"
+---
+- launchApp
+- assertVisible:
+    text: "Good"
+    timeout: 5000
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    id: "profile-screen"
+    timeout: 3000
+# Tap sign out
+- tapOn:
+    id: "profile-sign-out-button"
+# After sign out, should redirect to sign in screen
+- assertVisible:
+    text: "Welcome back"
+    timeout: 5000

@@ -149,7 +149,7 @@ export interface PronunciationCheckRequest {
 export interface PronunciationCheckResponse {
   overallIsCorrect: boolean;
   highlightedSegment: string;
-  similarity: number;
+  similarity: number; // 0–100
   pronunciation_match: boolean;
   ipa_transcription_reference: string;
   ipa_transcription_user: string;

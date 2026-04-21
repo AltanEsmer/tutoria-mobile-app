@@ -7,10 +7,14 @@ interface StreakBadgeProps {
 
 export function StreakBadge({ streakDays }: StreakBadgeProps) {
   return (
-    <View style={styles.card}>
+    <View testID="streak-badge" style={styles.card}>
       <Text style={styles.flame}>🔥</Text>
-      <Text style={styles.count}>{streakDays}</Text>
-      <Text style={styles.label}>day streak</Text>
+      <Text testID="streak-badge-count" style={styles.count}>
+        {streakDays}
+      </Text>
+      <Text testID="streak-badge-label" style={styles.label}>
+        day streak
+      </Text>
     </View>
   );
 }

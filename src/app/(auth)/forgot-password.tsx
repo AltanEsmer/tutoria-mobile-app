@@ -76,6 +76,7 @@ export default function ForgotPasswordScreen() {
             value={code}
             onChangeText={setCode}
             keyboardType="number-pad"
+            testID="forgot-password-code-input"
           />
           <TextInput
             style={styles.input}
@@ -85,14 +86,20 @@ export default function ForgotPasswordScreen() {
             onChangeText={setNewPassword}
             secureTextEntry
             autoComplete="new-password"
+            testID="forgot-password-new-password-input"
           />
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? (
+            <Text style={styles.errorText} testID="forgot-password-reset-error-text">
+              {error}
+            </Text>
+          ) : null}
 
           <Pressable
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleResetPassword}
             disabled={loading}
+            testID="forgot-password-reset-button"
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
@@ -101,7 +108,7 @@ export default function ForgotPasswordScreen() {
             )}
           </Pressable>
 
-          <Pressable onPress={() => setStep('email')}>
+          <Pressable onPress={() => setStep('email')} testID="forgot-password-reset-back-button">
             <Text style={styles.linkText}>← Back</Text>
           </Pressable>
         </View>
@@ -129,14 +136,20 @@ export default function ForgotPasswordScreen() {
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
+          testID="forgot-password-email-input"
         />
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? (
+          <Text style={styles.errorText} testID="forgot-password-error-text">
+            {error}
+          </Text>
+        ) : null}
 
         <Pressable
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleRequestReset}
           disabled={loading}
+          testID="forgot-password-send-button"
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -145,7 +158,7 @@ export default function ForgotPasswordScreen() {
           )}
         </Pressable>
 
-        <Link href="/(auth)/sign-in" style={styles.linkText}>
+        <Link href="/(auth)/sign-in" style={styles.linkText} testID="forgot-password-back-link">
           ← Back to Sign In
         </Link>
       </View>

@@ -1,0 +1,22 @@
+appId: ac.tutoria.mobile
+name: "Sign In Error Flow"
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    text: "Welcome back"
+- tapOn:
+    id: "sign-in-email-input"
+- clearText
+- inputText: "invalid@example.com"
+- tapOn:
+    id: "sign-in-password-input"
+- clearText
+- inputText: "wrongpassword"
+- hideKeyboard
+- tapOn:
+    id: "sign-in-submit-button"
+# Should show error
+- assertVisible:
+    id: "sign-in-error-text"
+    timeout: 3000

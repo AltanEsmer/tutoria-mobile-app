@@ -6,7 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAudio } from '@/hooks/useAudio';
 import { useHaptics } from '@/hooks/useHaptics';
 import { usePronunciation } from '@/hooks/usePronunciation';
-import { completeWord, startOrResumeModule } from '@/services/api';
+import { completeSession, completeWord, startOrResumeModule } from '@/services/api';
 import { prefetchAudioFiles } from '@/services/cache';
 import { useLessonStore } from '@/stores/useLessonStore';
 import { useProfileStore } from '@/stores/useProfileStore';
@@ -89,6 +89,12 @@ export default function LessonScreen() {
   useEffect(() => {
     if (store.sessionComplete && moduleId) {
       store.setCooldown(moduleId);
+      // Best-effort backend notification — don't block navigation
+      if (activeProfile) {
+        completeSession(moduleId, activeProfile.id).catch(() => {
+          // Queue for offline sync if needed — session completion is best-effort
+        });
+      }
       router.replace(`/lesson/results?moduleId=${moduleId}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,7 +209,7 @@ export default function LessonScreen() {
   // ─── Loading / error / empty states ───────────────────────────────────────
   if (store.isLoading) {
     return (
-      <View style={styles.centered}>
+      <View testID="lesson-loading" style={styles.centered}>
         <ActivityIndicator size="large" color="#1F3A5F" />
       </View>
     );
@@ -211,9 +217,12 @@ export default function LessonScreen() {
 
   if (store.error) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{store.error}</Text>
+      <View testID="lesson-error-container" style={styles.centered}>
+        <Text testID="lesson-error-text" style={styles.errorText}>
+          {store.error}
+        </Text>
         <Pressable
+          testID="lesson-retry-button"
           style={styles.button}
           onPress={() => {
             store.setError(null);
@@ -229,9 +238,13 @@ export default function LessonScreen() {
 
   if (!activeProfile || !store.currentSession || !currentWord) {
     return (
-      <View style={styles.centered}>
+      <View testID="lesson-empty-container" style={styles.centered}>
         <Text style={styles.placeholderText}>Start a lesson by tapping your NFC card</Text>
-        <Pressable style={styles.button} onPress={() => router.push('/')}>
+        <Pressable
+          testID="lesson-go-home-button"
+          style={styles.button}
+          onPress={() => router.push('/')}
+        >
           <Text style={styles.buttonText}>← Go Home</Text>
         </Pressable>
       </View>
@@ -245,24 +258,31 @@ export default function LessonScreen() {
   const isInteractionDisabled = pronunciation.isChecking || isSubmitting || !!feedbackResult;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView testID="lesson-screen" style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable
+          testID="lesson-back-button"
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
           <Text style={styles.backButtonText}>←</Text>
         </Pressable>
-        <Text style={styles.moduleName} numberOfLines={1}>
+        <Text testID="lesson-module-name" style={styles.moduleName} numberOfLines={1}>
           {store.currentSession.moduleName}
         </Text>
       </View>
 
       {/* Progress bar */}
       <View style={styles.progressSection}>
-        <Text style={styles.progressLabel}>
+        <Text testID="lesson-progress-label" style={styles.progressLabel}>
           Word {store.currentWordIndex + 1} of {store.currentSession.totalWords}
         </Text>
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+        <View testID="lesson-progress-bar-container" style={styles.progressBarContainer}>
+          <View
+            testID="lesson-progress-bar-fill"
+            style={[styles.progressBarFill, { width: `${progress}%` }]}
+          />
         </View>
       </View>
 
@@ -278,7 +298,7 @@ export default function LessonScreen() {
         </View>
 
         {/* Attempt counter */}
-        <Text style={styles.attemptText}>
+        <Text testID="lesson-attempt-counter" style={styles.attemptText}>
           Attempt {Math.min(attemptCount + 1, MAX_WORD_ATTEMPTS)} of {MAX_WORD_ATTEMPTS}
         </Text>
 
@@ -297,6 +317,7 @@ export default function LessonScreen() {
       {/* Action buttons */}
       <View style={styles.actionsSection}>
         <Pressable
+          testID="lesson-play-button"
           style={[styles.actionButton, audio.isLoading && styles.disabledButton]}
           disabled={audio.isLoading}
           onPress={() => audio.play(currentWord.audio_path ?? '')}
@@ -307,6 +328,7 @@ export default function LessonScreen() {
         </Pressable>
 
         <Pressable
+          testID="lesson-record-button"
           style={[
             styles.actionButton,
             styles.recordButton,
@@ -328,13 +350,17 @@ export default function LessonScreen() {
 
       {/* Skip button — hidden while feedback is showing or checking */}
       {!feedbackResult && !pronunciation.isChecking ? (
-        <Pressable style={styles.skipButton} onPress={handleSkip}>
+        <Pressable testID="lesson-skip-button" style={styles.skipButton} onPress={handleSkip}>
           <Text style={styles.skipText}>Skip word ⏭️</Text>
         </Pressable>
       ) : null}
 
       {pronunciation.canSkipPronunciation && !feedbackResult && !pronunciation.isChecking ? (
-        <Pressable style={styles.skipPronunciationButton} onPress={handleSkip}>
+        <Pressable
+          testID="lesson-skip-pronunciation-button"
+          style={styles.skipPronunciationButton}
+          onPress={handleSkip}
+        >
           <Text style={styles.skipPronunciationText}>
             Pronunciation unavailable — Skip to next word
           </Text>

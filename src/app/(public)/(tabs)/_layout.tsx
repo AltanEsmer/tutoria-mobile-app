@@ -65,6 +65,7 @@ export default function TabsLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} />,
+          tabBarAccessibilityLabel: 'Home tab',
         }}
       />
       <Tabs.Screen
@@ -72,6 +73,7 @@ export default function TabsLayout() {
         options={{
           title: 'Progress',
           tabBarIcon: ({ focused }) => <ProgressTabIcon focused={focused} />,
+          tabBarAccessibilityLabel: 'Progress tab',
         }}
       />
       <Tabs.Screen
@@ -79,6 +81,7 @@ export default function TabsLayout() {
         options={{
           title: 'Syllabus',
           tabBarIcon: ({ focused }) => <TabIcon emoji="📚" focused={focused} />,
+          tabBarAccessibilityLabel: 'Syllabus tab',
         }}
       />
       <Tabs.Screen
@@ -86,6 +89,7 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
+          tabBarAccessibilityLabel: 'Profile tab',
         }}
       />
       <Tabs.Screen

@@ -148,9 +148,13 @@ export default function ResultsScreen() {
 
   if (!session) {
     return (
-      <SafeAreaView style={styles.centered}>
+      <SafeAreaView testID="results-empty-container" style={styles.centered}>
         <Text style={styles.emptyText}>No session data found.</Text>
-        <Pressable style={styles.btn} onPress={() => router.replace('/(public)/(tabs)/home')}>
+        <Pressable
+          testID="results-empty-home-button"
+          style={styles.btn}
+          onPress={() => router.replace('/(public)/(tabs)/home')}
+        >
           <Text style={styles.btnText}>Back to Home 🏠</Text>
         </Pressable>
       </SafeAreaView>
@@ -176,20 +180,24 @@ export default function ResultsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView testID="results-screen" style={styles.container}>
       {/* Confetti when score is good */}
       {pct >= 80 && <ConfettiLayer />}
 
       {/* ── Header ── */}
       <View style={styles.header}>
-        <Text style={styles.moduleName} numberOfLines={2}>
+        <Text testID="results-module-name" style={styles.moduleName} numberOfLines={2}>
           {session.moduleName}
         </Text>
-        <Text style={styles.encouragement}>{encouragement}</Text>
+        <Text testID="results-encouragement" style={styles.encouragement}>
+          {encouragement}
+        </Text>
 
-        <View style={styles.scoreCircle}>
-          <Text style={styles.scoreNumber}>{pct}%</Text>
-          <Text style={styles.scoreSubLabel}>
+        <View testID="results-score-circle" style={styles.scoreCircle}>
+          <Text testID="results-score-number" style={styles.scoreNumber}>
+            {pct}%
+          </Text>
+          <Text testID="results-score-label" style={styles.scoreSubLabel}>
             {score} / {total} words
           </Text>
         </View>
@@ -217,15 +225,19 @@ export default function ResultsScreen() {
       <View style={styles.actions}>
         {moduleId &&
           (onCooldown ? (
-            <View style={[styles.btn, styles.btnDisabled]}>
+            <View testID="results-cooldown-button" style={[styles.btn, styles.btnDisabled]}>
               <Text style={styles.btnText}>⏳ On Cooldown</Text>
             </View>
           ) : (
-            <Pressable style={[styles.btn, styles.btnAccent]} onPress={handleTryAgain}>
+            <Pressable
+              testID="results-try-again-button"
+              style={[styles.btn, styles.btnAccent]}
+              onPress={handleTryAgain}
+            >
               <Text style={styles.btnText}>Try Again 🔄</Text>
             </Pressable>
           ))}
-        <Pressable style={styles.btn} onPress={handleHome}>
+        <Pressable testID="results-home-button" style={styles.btn} onPress={handleHome}>
           <Text style={styles.btnText}>Back to Home 🏠</Text>
         </Pressable>
       </View>

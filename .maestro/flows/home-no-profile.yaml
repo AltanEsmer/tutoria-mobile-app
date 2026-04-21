@@ -1,0 +1,18 @@
+appId: ac.tutoria.mobile
+name: "Home Screen - No Profile State"
+---
+# This test assumes a freshly signed-in state with no profile selected
+- launchApp
+- assertVisible:
+    text: "Good"
+    timeout: 5000
+- assertVisible:
+    id: "home-no-profile-container"
+- assertVisible:
+    text: "No profile selected"
+- tapOn:
+    id: "home-go-to-profiles-button"
+# Should navigate to profile tab
+- assertVisible:
+    text: "Profiles"
+    timeout: 3000

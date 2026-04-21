@@ -88,7 +88,7 @@ function HomeScreenContent() {
   const greeting = getGreeting();
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} testID="home-screen">
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -96,13 +96,19 @@ function HomeScreenContent() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>{greeting} 👋</Text>
-          {activeProfile && <Text style={styles.subtitle}>{activeProfile.name}</Text>}
+          <Text style={styles.title} testID="home-greeting-title">
+            {greeting} 👋
+          </Text>
+          {activeProfile && (
+            <Text style={styles.subtitle} testID="home-profile-subtitle">
+              {activeProfile.name}
+            </Text>
+          )}
         </View>
 
         {/* No profile state */}
         {!activeProfile && (
-          <View style={styles.emptyState}>
+          <View style={styles.emptyState} testID="home-no-profile-container">
             <Text style={styles.emptyEmoji}>👤</Text>
             <Text style={styles.emptyTitle}>No profile selected</Text>
             <Text style={styles.emptyBody}>Select a profile to get started</Text>
@@ -110,6 +116,7 @@ function HomeScreenContent() {
               style={styles.linkButton}
               onPress={() => router.push('/profile')}
               accessibilityRole="button"
+              testID="home-go-to-profiles-button"
             >
               <Text style={styles.linkButtonText}>Go to Profiles</Text>
             </Pressable>
@@ -118,19 +125,21 @@ function HomeScreenContent() {
 
         {/* Missions section */}
         {activeProfile && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Your Missions</Text>
+          <View style={styles.section} testID="home-missions-section">
+            <Text style={styles.sectionTitle} testID="home-missions-title">
+              Your Missions
+            </Text>
 
-            {loading && <LoadingSpinner style={styles.spinner} />}
+            {loading && <LoadingSpinner style={styles.spinner} testID="home-missions-loading" />}
 
             {!loading && error && (
-              <View style={styles.errorState}>
+              <View style={styles.errorState} testID="home-missions-error">
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
 
             {!loading && !error && missions.length === 0 && (
-              <View style={styles.emptyState}>
+              <View style={styles.emptyState} testID="home-missions-empty">
                 <Text style={styles.emptyEmoji}>🎉</Text>
                 <Text style={styles.emptyTitle}>All caught up!</Text>
                 <Text style={styles.emptyBody}>No missions available right now.</Text>

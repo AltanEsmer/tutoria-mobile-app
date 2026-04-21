@@ -1,0 +1,20 @@
+appId: ac.tutoria.mobile
+name: "Profile Screen"
+---
+- launchApp
+- assertVisible:
+    text: "Good"
+    timeout: 5000
+# Navigate to Profile tab
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    id: "profile-screen"
+    timeout: 3000
+# Verify key elements
+- assertVisible:
+    id: "profile-header-title"
+- assertVisible:
+    id: "profile-sign-out-button"
+- assertVisible:
+    text: "Profiles"

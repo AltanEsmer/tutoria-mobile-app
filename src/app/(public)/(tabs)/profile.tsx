@@ -34,6 +34,7 @@ interface ProfileCardProps {
 function ProfileCard({ profile, isActive, showFeedback, onPress }: ProfileCardProps) {
   return (
     <Pressable
+      testID={`profile-card-${profile.id}`}
       style={[styles.card, isActive && styles.cardActive]}
       onPress={onPress}
       accessibilityRole="button"
@@ -43,14 +44,20 @@ function ProfileCard({ profile, isActive, showFeedback, onPress }: ProfileCardPr
         <Text style={styles.avatarText}>{getInitial(profile.name)}</Text>
       </View>
       <View style={styles.cardContent}>
-        <Text style={styles.profileName}>{profile.name}</Text>
+        <Text testID={`profile-card-name-${profile.id}`} style={styles.profileName}>
+          {profile.name}
+        </Text>
         {isActive && (
-          <View style={styles.activeBadge}>
+          <View testID={`profile-card-active-badge-${profile.id}`} style={styles.activeBadge}>
             <Text style={styles.activeBadgeText}>Active</Text>
           </View>
         )}
       </View>
-      {showFeedback && <Text style={styles.feedbackText}>Selected!</Text>}
+      {showFeedback && (
+        <Text testID={`profile-card-feedback-${profile.id}`} style={styles.feedbackText}>
+          Selected!
+        </Text>
+      )}
     </Pressable>
   );
 }
@@ -103,7 +110,7 @@ function ProfileScreenContent() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
+      <View testID="profile-loading-container" style={styles.centered}>
         <ActivityIndicator size="large" color={COLORS.navy} />
       </View>
     );
@@ -111,9 +118,11 @@ function ProfileScreenContent() {
 
   if (error) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={loadProfiles}>
+      <View testID="profile-error-container" style={styles.centered}>
+        <Text testID="profile-error-text" style={styles.errorText}>
+          {error}
+        </Text>
+        <Pressable testID="profile-retry-button" style={styles.retryButton} onPress={loadProfiles}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </Pressable>
       </View>
@@ -121,10 +130,13 @@ function ProfileScreenContent() {
   }
 
   return (
-    <View style={styles.container}>
+    <View testID="profile-screen" style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profiles</Text>
+        <Text testID="profile-header-title" style={styles.headerTitle}>
+          Profiles
+        </Text>
         <Pressable
+          testID="profile-sign-out-button"
           style={styles.signOutButton}
           onPress={() => signOut()}
           accessibilityRole="button"
@@ -135,9 +147,12 @@ function ProfileScreenContent() {
       </View>
 
       {profiles.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyText}>No profiles yet</Text>
+        <View testID="profile-empty-container" style={styles.centered}>
+          <Text testID="profile-empty-text" style={styles.emptyText}>
+            No profiles yet
+          </Text>
           <Pressable
+            testID="profile-add-first-button"
             style={styles.addButton}
             onPress={() => router.push('/profile/add')}
             accessibilityRole="button"
@@ -162,6 +177,7 @@ function ProfileScreenContent() {
           />
           <View style={styles.footer}>
             <Pressable
+              testID="profile-add-button"
               style={styles.addButton}
               onPress={() => router.push('/profile/add')}
               accessibilityRole="button"

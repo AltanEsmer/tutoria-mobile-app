@@ -1,0 +1,13 @@
+appId: ac.tutoria.mobile
+name: "Home Missions Display"
+---
+- launchApp
+- assertVisible:
+    text: "Good"
+    timeout: 5000
+- assertVisible:
+    id: "home-screen"
+# Check missions section is visible when profile is active
+- assertVisible:
+    id: "home-missions-section"
+    timeout: 3000
