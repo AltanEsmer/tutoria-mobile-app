@@ -85,7 +85,9 @@ function ProfileScreenContent() {
   }, [setProfiles]);
 
   useEffect(() => {
-    loadProfiles();
+    (async () => {
+      await loadProfiles();
+    })();
   }, [loadProfiles]);
 
   async function handleSelectProfile(profile: Profile) {

@@ -1,0 +1,94 @@
+TUTORIA API
+Endpoint Reference for
+Curriculum & Content
+Developer Reference
+GETTING STARTED
+The Tutoria API powers the native learning app. The base URL for development is https://api-dev.tutoria.ac. Auth uses a Bearer token in the Authorization header.
+
+For beta/development, use the bypass token: tutoria-integration-test-2026 — pass it as Authorization: Bearer tutoria-integration-test-2026. Phase 4 will replace this with Clerk JWTs; the setToken() method on ApiService is where that swap happens.
+
+All endpoints that query user-specific data require a profileId query param or in the request body. The native app always has an active profile selected before hitting any curriculum APIs.
+API DOCS STRUCTURE
+Docs live in tutoria-api/docs/. Here's what's load-bearing:
+
+FILE	TYPE	CONTAINS
+docs/README.md	Navigation	Full index — start here
+docs/ARCHITECTURE.md	Architecture	Service topology, data flow, external deps
+docs/adr/0001-two-sided-validation.md	ADR	Pronunciation validation design (Gemini two-sided judge)
+docs/adr/0002-azure-force-align-defect.md	ADR	Azure force-align defect — why confused[] field matters
+docs/adr/0003-bench-methodology.md	ADR	How pronunciation benchmarking works
+docs/adr/0004-fail-loud-doctrine.md	ADR	Error handling philosophy
+docs/rules/curriculum-contract.md	Rules	Curriculum data invariants
+docs/rules/pronunciation-decisions.md	Rules	Pronunciation scoring rules
+docs/dev/README.md	Setup	Local setup, secrets, deploy
+ADRs are immutable — they document why decisions were made. Read them before changing anything they cover.
+CURRICULUM & CONTENT ENDPOINTS
+These are the endpoints the native app uses for content delivery and practice sessions.
+
+1
+Stages (Curriculum Structure)
+GET /v1/syllabus/stages?profileId=X
+Returns the full curriculum as stages[]. Each stage has: id, title, description, moduleFiles[], unlocked (bool), masteryPercent. Used by HomeScreen for book cover cards and chapter navigation.
+2
+Module Status
+GET /v1/modules/{moduleId}?profileId=X
+Returns detailed module data — title, description, status (mastered / in-progress / available / not-started / cooldown), progress %, stars, wordCount, difficulty, estimatedMinutes, words[], chapter, stage. Used by ModuleDetailScreen for module preview.
+3
+Start Practice Session
+POST /v1/modules/{moduleId} — body: { profileId }
+Starts a practice session. Returns words[], wordData[] (each word has: id, display_text, targetIPA, acceptableIPAs, validation.confused[]), totalWords, position, moduleName, completedWords[], remainingWords[], failedWords[]. This is what PracticeScreen calls to get the word cards.
+4
+Submit Word Result
+POST /v1/modules/{moduleId}/word — body: { profileId, wordId, isCorrect } + header X-Idempotency-Key
+Submits a word result during practice. Returns { success, isComplete, starsEarned }. Use the idempotency key for offline replay safety (server deduplicates). isComplete=true signals session end.
+5
+Batch Module Status
+POST /v1/modules/status/batch — body: { profileId, moduleIds[] }
+Efficiently checks progress/unlock state for many modules at once. Returns a map of moduleId to { attempts, canAttempt, hasActiveSession }. Used by CurriculumView to populate the module grid.
+6
+Missions (Recommended Actions)
+GET /v1/modules/missions?profileId=X
+Returns AI-curated mission suggestions — quick-win, continue, or retry types. Used by HomeScreen for the recommended next action. Each mission has: id, type, label, moduleId, description.
+7
+Clear Session
+DELETE /v1/modules/{moduleId}?profileId=X
+Clears an active practice session for a module. Call before starting fresh if hasActiveSession is true and you want to reset.
+AUDIO
+Word audio is served via two mechanisms:
+
+1
+GET /v1/audio/sounds-resolve?ipa=X
+Resolves IPA phonemes to audio URLs. Single phoneme: returns publicUrl. Compound word: returns publicUrls[] (full word first). Used in PracticeScreen to preload word audio before cards appear.
+2
+GET /v1/audio/proxy?path=X
+URL construction only (not a fetch). Builds a proxied URL for a specific audio file path. The app constructs this URL client-side and uses it as the audio source.
+PROGRESS & STATS
+ENDPOINT	METHOD	PURPOSE
+/v1/progress/{profileId}	GET	Full activity log — entries[] with activityId, isCorrect, timestamp
+/v1/progress/{profileId}/{activityId}	POST	Save a progress entry. Body: { isCorrect }. Use X-Idempotency-Key header.
+/v1/stats/{profileId}	GET	Aggregate stats — totalStars, streakDays, completionPercent, mastered count, chapterProgress map. Used by HeroBar.
+PROFILES (REQUIRED FOR ALL QUERIES)
+Every curriculum endpoint needs a profileId. Here are the profile management endpoints — call these first on app boot:
+
+ENDPOINT	WHAT IT DOES
+GET /v1/profiles/list	Returns all profiles for the authenticated user
+POST /v1/profiles/create	Creates a new profile — body: { name } — returns profileId
+POST /v1/profiles/select	Selects active profile — body: { profileId }
+PUT /v1/profiles/{profileId}	Renames a profile — body: { name }
+DELETE /v1/profiles/{profileId}	Deletes a profile
+OFFLINE SAFETY
+NOTE
+submitWord and saveProgress both support idempotency. Pass X-Idempotency-Key in the header AND idempotencyKey in the request body. The server deduplicates on this key — safe to retry after network failure without double-counting. Generate a UUID per word attempt on the client.
+
+---
+
+Chat with AI agent:
+ API & Auth Update:
+
+   - The default API endpoint https://api-dev.tutoria.ac was returning 404
+   - CEO clarified: Forget Clerk integration for now. Use static bypass token instead: Authorization: Bearer tutoria-integration-test-2026
+   - All endpoints require a profileId query parameter
+   - Phase 4 will replace the bypass token with Clerk JWTs (Dev message: I think phase 4 is implemented - check ROADMAP.md)
+   - Update src/services/api/client.ts to use the bypass token instead of Clerk
+
+  Next Step: Configure your API client to use the bypass token and you're good to go.

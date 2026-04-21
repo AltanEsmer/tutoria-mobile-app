@@ -73,7 +73,9 @@ function SyllabusScreenContent() {
   }, []);
 
   useEffect(() => {
-    loadStages();
+    (async () => {
+      await loadStages();
+    })();
   }, [loadStages]);
 
   function toggleStage(stageId: string) {

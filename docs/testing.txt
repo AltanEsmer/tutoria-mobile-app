@@ -1,0 +1,41 @@
+Session Summary: Maestro Testing & Automated Bug Fixing for Tutoria
+
+What We Discussed
+
+1. Maestro Framework Overview
+
+ - Maestro is a cross-platform mobile testing framework for iOS, Android, and Web apps
+ - Supports React Native, Flutter, and many other frameworks
+ - Provides both visual IDE (Maestro Studio) and CLI-based testing
+ - Features AI-assisted test generation and element detection
+
+2. Viability for Tutoria Project
+
+ - Highly recommended — Perfect fit for React Native/Expo app
+ - Can test critical flows: lesson navigation, audio recording, pronunciation checking, UI state
+ - Supports shift-left testing (catch bugs early in CI/CD)
+ - Fills the testing gap planned for Phase 5 of your roadmap
+
+3. Automated Testing + Agent-Powered Bug Fixing
+
+ - Proposed workflow: Run Maestro tests → Parse failures → Claude agent analyzes → Agent fixes code → Re-test
+ - This creates a continuous automated quality loop
+ - Agents can review error logs, stack traces, and screenshots, then implement fixes autonomously
+ - Much more efficient than manual QA
+
+4. NFC Mock Testing Strategy
+
+ - With EXPO_PUBLIC_ENABLE_NFC_MOCK=true, Maestro can fully test NFC flows without hardware
+ - The mock is transparent to Maestro — tests see the same UI as real NFC interactions
+ - Enables end-to-end testing: mock NFC → lesson → audio recording → API calls → results
+ - Fully reproducible, no flakiness from hardware variability
+
+Key Takeaway
+
+You can build a fully automated testing & bug-fixing pipeline where:
+
+ 1. Maestro tests all major user flows with NFC mocks
+ 2. Agents automatically analyze failures and fix bugs
+ 3. Tests re-run to verify fixes
+
+This significantly accelerates development and improves quality.

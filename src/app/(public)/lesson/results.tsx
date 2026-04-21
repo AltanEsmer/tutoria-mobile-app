@@ -127,7 +127,14 @@ export default function ResultsScreen() {
   const resultsRef = useRef(pronunciationResults);
   const scoreRef = useRef(sessionScore);
 
+  const [session, setSession] = useState(currentSession);
+  const [score, setScore] = useState(sessionScore);
+
   useEffect(() => {
+    // Extract ref values into state to avoid accessing refs during render
+    setSession(sessionRef.current);
+    setScore(scoreRef.current);
+
     // If no session on mount, redirect home
     if (!sessionRef.current) {
       router.replace('/(public)/(tabs)/home');
@@ -138,8 +145,6 @@ export default function ResultsScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const session = sessionRef.current;
 
   if (!session) {
     return (
@@ -153,7 +158,6 @@ export default function ResultsScreen() {
   }
 
   const total = session.totalWords || session.wordData.length;
-  const score = scoreRef.current;
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
 
   const encouragement =
