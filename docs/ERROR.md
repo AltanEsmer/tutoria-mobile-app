@@ -199,3 +199,39 @@ to your top-level package.json.
     at Object.transform (C:\Users\esmer\Desktop\Projects\tutoria-mobile-app\node_modules\expo\node_modules\@expo\metro-config\build\transform-worker\transform-worker.js:178:19)
 › Stopped server
 PS C:\Users\esmer\Desktop\Projects\tutoria-mobile-app> 
+---
+
+### False "You're offline" banner on connected device
+
+**Context:** OfflineBanner shows on home screen even when device has internet  
+**Error:** Banner visible immediately after `hasBeenOnline` is set, though device is online  
+**Cause (v1):** `state.isConnected !== false` accepted `null` as "online", but NetInfo briefly fires `isConnected: false` during startup triggering the banner  
+**Cause (v2):** After switching to `=== true`, the `else` branch treated `isConnected: null` (unknown/transitioning state) as **offline** — this is what caused the banner to persist on iPhones  
+**Fix:** Use a **three-way check** — `isConnected === true` → online, `isConnected === false` → offline, `null` → skip entirely. NetInfo emits `null` during every network transition; it must never trigger a state change
+
+---
+
+### OfflineBanner partially visible behind iPhone status bar when "hidden"
+
+**Context:** Banner uses `position: absolute, top: insets.top + 8` with `translateY: -BANNER_HEIGHT` for hidden state  
+**Error:** On iPhones with Dynamic Island / notch (`insets.top ≈ 59px`), hidden banner sits at `59 + 8 - 44 = 23px` from top — visible behind the status bar icons  
+**Cause:** Hide offset `-BANNER_HEIGHT (-44)` only pushes the banner up 44px, but the status bar is 59px tall — so the banner peeks behind the clock/battery icons  
+**Fix:** Calculate `hideOffset = -(BANNER_HEIGHT + insets.top + 16)` which pushes the banner fully above the screen. Also added `initialWindowMetrics` to `SafeAreaProvider` so `insets.top` is correct on the very first render (not 0)
+
+---
+
+### App re-renders continuously / "refreshing without stop"
+
+**Context:** Entire app re-renders on every NetInfo event, making the UI feel like it's constantly refreshing  
+**Error:** No error message — visual flicker and continuous layout re-render  
+**Cause:** `useNetworkState.ts` called `useNetworkStore()` with **no selector**, subscribing the entire `RootLayoutInner` to the full Zustand store object. Any store write (even `isInternetReachable: null → true`) triggered a full re-render cascade from root  
+**Fix:** Replaced `useNetworkStore()` with targeted selectors (`useNetworkStore((s) => s.setNetworkState)` etc.). Rule: always pass a selector to Zustand hooks — never subscribe to the entire store object
+
+---
+
+### iOS build fails — AsyncStorageSpec-generated.mm not found
+
+**Context:** Running `npx expo run:ios --device` after a dependency update or interrupted build  
+**Error:** `Build input file cannot be found: '.../ReactCodegen/AsyncStorageSpec/AsyncStorageSpec-generated.mm'` — xcodebuild exits with code 65  
+**Cause:** Stale `ios/build/` artifacts reference codegen output files that no longer exist at those paths after a dependency change or interrupted build  
+**Fix:** `rm -rf ios/build && cd ios && pod install`, then re-run `npx expo run:ios --device`
