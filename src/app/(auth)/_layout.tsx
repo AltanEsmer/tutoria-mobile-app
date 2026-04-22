@@ -1,14 +1,6 @@
-import { useAuth } from '@clerk/clerk-expo';
-import { Redirect, Stack } from 'expo-router';
+import { Redirect } from 'expo-router';
 
+// TODO Phase 4: Restore Clerk auth guard when JWTs replace the bypass token.
 export default function AuthLayout() {
-  const { isSignedIn, isLoaded } = useAuth();
-
-  if (!isLoaded) return null;
-
-  if (isSignedIn) {
-    return <Redirect href="/(public)/(tabs)/home" />;
-  }
-
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <Redirect href="/(public)/(tabs)/home" />;
 }

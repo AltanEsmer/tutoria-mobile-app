@@ -1,4 +1,3 @@
-import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -72,7 +71,6 @@ export default function ProfileScreen() {
 
 function ProfileScreenContent() {
   const router = useRouter();
-  const { signOut } = useAuth();
   const { profiles, activeProfile, setProfiles, setActiveProfile } = useProfileStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +136,9 @@ function ProfileScreenContent() {
         <Pressable
           testID="profile-sign-out-button"
           style={styles.signOutButton}
-          onPress={() => signOut()}
+          onPress={() => {
+            /* TODO Phase 4: wire Clerk signOut here */
+          }}
           accessibilityRole="button"
           accessibilityLabel="Sign out"
         >

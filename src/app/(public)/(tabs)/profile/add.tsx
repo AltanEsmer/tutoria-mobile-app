@@ -1,4 +1,3 @@
-import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -32,7 +31,6 @@ const NAME_MAX = 30;
 
 export default function AddProfileScreen() {
   const router = useRouter();
-  const { userId } = useAuth();
   const { addProfile } = useProfileStore();
 
   const [name, setName] = useState('');
@@ -78,7 +76,7 @@ export default function AddProfileScreen() {
       addProfile({
         id: profileId,
         name: name.trim(),
-        user_id: userId ?? '',
+        user_id: '', // TODO Phase 4: replace with Clerk userId
         created_at: new Date().toISOString(),
       });
       router.back();

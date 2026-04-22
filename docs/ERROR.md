@@ -1,5 +1,17 @@
 # Error Documentation File
 
+> **Agent instruction:** When you encounter an error and apply a fix, append a new entry to this file under **Errors found** using the format below. Keep entries concise.
+>
+> ```
+> ### [Short title]
+> **Context:** Where/when the error occurs  
+> **Error:** The exact error message or symptom  
+> **Cause:** Root cause  
+> **Fix:** What was done to resolve it  
+> ```
+
+---
+
 ## Errors found
 C:\Users\esmer\Desktop\Projects\tutoria-mobile-app> npm run android
 
