@@ -5,7 +5,7 @@ import type { NetworkState } from '../utils/types';
 interface NetworkStore extends NetworkState {
   /** True once we have received at least one confirmed-online event from NetInfo. */
   hasBeenOnline: boolean;
-  setNetworkState: (state: Partial<NetworkState>) => void;
+  setNetworkState: (state: Partial<Omit<NetworkStore, 'setNetworkState'>>) => void;
 }
 
 export const useNetworkStore = create<NetworkStore>((set) => ({
