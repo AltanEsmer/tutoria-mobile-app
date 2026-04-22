@@ -233,5 +233,5 @@ PS C:\Users\esmer\Desktop\Projects\tutoria-mobile-app>
 
 **Context:** Running `npx expo run:ios --device` after a dependency update or interrupted build  
 **Error:** `Build input file cannot be found: '.../ReactCodegen/AsyncStorageSpec/AsyncStorageSpec-generated.mm'` — xcodebuild exits with code 65  
-**Cause:** Stale `ios/build/` artifacts reference codegen output files that no longer exist at those paths after a dependency change or interrupted build  
-**Fix:** `rm -rf ios/build && cd ios && pod install`, then re-run `npx expo run:ios --device`
+**Cause:** Xcode DerivedData cache holds stale file-reference records that conflict with the current `ios/build/generated/` state — triggers even when the `.mm` file physically exists  
+**Fix:** `rm -rf ios/build ~/Library/Developer/Xcode/DerivedData/tutoria* && cd ios && pod install`, then re-run `npx expo run:ios --device`
