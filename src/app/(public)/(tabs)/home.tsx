@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -32,31 +32,40 @@ function HomeScreenContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!activeProfile) return;
+  useFocusEffect(
+    useCallback(() => {
+      if (!activeProfile) return;
 
-    let cancelled = false;
+      let cancelled = false;
 
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getMissions(activeProfile.id);
-        if (!cancelled) {
-          const sorted = [...data].sort((a, b) => a.priority - b.priority);
-          setMissions(sorted.slice(0, 3));
+      const fetchMissions = async () => {
+        console.log('[Home] focus → refetching missions for', activeProfile.id);
+        setLoading(true);
+        setError(null);
+        try {
+          const data = await getMissions(activeProfile.id, true);
+          if (!cancelled) {
+            const sorted = [...data].sort((a, b) => a.priority - b.priority);
+            setMissions(sorted.slice(0, 3));
+            console.log(
+              '[Missions] Available moduleIds (use one for EXPO_PUBLIC_NFC_MOCK_MODULE_ID):',
+              data.map((m) => m.moduleId),
+            );
+          }
+        } catch {
+          if (!cancelled) setError('Could not load missions. Please try again.');
+        } finally {
+          if (!cancelled) setLoading(false);
         }
-      } catch {
-        if (!cancelled) setError('Could not load missions. Please try again.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+      };
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProfile]);
+      fetchMissions();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [activeProfile]),
+  );
 
   const handleNfcScan = useCallback(async () => {
     const tag = await scan();
@@ -69,6 +78,8 @@ function HomeScreenContent() {
       router.push(`/lesson/${tag.moduleId}`);
     } else if (tag && !tag.isValid) {
       Alert.alert('Invalid Card', 'This NFC card is not recognised. Please try another card.');
+    } else if (!tag) {
+      Alert.alert('Scan Failed', 'No card detected. Please hold the card closer and try again.');
     }
   }, [scan]);
 

@@ -14,6 +14,8 @@ interface ProgressStore {
   setActivities: (activities: ActivityProgress[]) => void;
   setStreakDays: (days: number) => void;
   setLoading: (loading: boolean) => void;
+  /** Clear cached activities/streak so the next Progress-tab focus fetches fresh data. */
+  invalidate: () => void;
   addToQueue: (item: Omit<OfflineQueueItem, 'id' | 'createdAt' | 'retryCount'>) => void;
   removeFromQueue: (id: string) => void;
   drainQueue: () => Promise<void>;
@@ -34,6 +36,7 @@ export const useProgressStore = create<ProgressStore>()(
       setActivities: (activities) => set({ activities }),
       setStreakDays: (streakDays) => set({ streakDays }),
       setLoading: (isLoading) => set({ isLoading }),
+      invalidate: () => set({ activities: [], streakDays: 0, isLoading: false }),
 
       addToQueue: (item) => {
         const id = Date.now().toString(36) + Math.random().toString(36).slice(2);

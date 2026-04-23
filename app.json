@@ -40,7 +40,12 @@
       "expo-secure-store",
       "expo-router",
       "expo-web-browser",
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Tutoria records your voice to check pronunciation during lessons"
+        }
+      ]
     ]
   }
 }

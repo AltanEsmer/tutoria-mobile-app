@@ -1,17 +1,129 @@
-import { getCache, setCache, getCacheEntry } from '../cache';
+import { getCache, setCache, getCacheEntry, clearCache } from '../cache';
 import { MODULE_CACHE_TTL } from '../../utils/constants';
 import type {
   Mission,
   ModuleStatus,
   SessionData,
+  WordData,
   WordCompletionRequest,
   WordCompletionResponse,
   BatchModuleStatusRequest,
 } from '../../utils/types';
 import apiClient from './client';
+import { resolveSounds } from './audio';
 
-export async function getMissions(profileId: string): Promise<Mission[]> {
+/**
+ * Normalise a raw API word record to the canonical snake_case WordData shape.
+ *
+ * The curriculum JSON stored in R2 may use camelCase field names
+ * (displayText, targetIpa, audioPath). The backend typically normalises these
+ * to snake_case when writing the session blob, but historically some sessions
+ * were stored with camelCase keys intact. This function guarantees downstream
+ * code always receives snake_case fields regardless of what the API returns.
+ */
+function normalizeWordData(raw: Record<string, unknown>): WordData {
+  const display_text =
+    (raw['display_text'] as string | undefined) || (raw['displayText'] as string | undefined) || '';
+
+  const target_ipa =
+    (raw['target_ipa'] as string | undefined) ||
+    (raw['targetIpa'] as string | undefined) ||
+    (raw['targetIPA'] as string | undefined) ||
+    undefined;
+
+  const audio_path =
+    (raw['audio_path'] as string | undefined) ||
+    (raw['audioPath'] as string | undefined) ||
+    undefined;
+
+  return {
+    ...raw,
+    id: (raw['id'] as string) || '',
+    display_text,
+    target_ipa,
+    audio_path,
+  };
+}
+
+function normalizeSession(session: SessionData): SessionData {
+  return {
+    ...session,
+    wordData: session.wordData.map((w) =>
+      normalizeWordData(w as unknown as Record<string, unknown>),
+    ),
+  };
+}
+
+/**
+ * Resolve `audio_path` for any words that only carry an `audio_files` array
+ * (curriculum JSON format). Calls `/v1/audio/sounds-resolve` once per word that
+ * needs resolution. All calls are made in parallel and failures are silently
+ * swallowed so a single unresolvable word doesn't block the whole lesson.
+ */
+export async function resolveSessionAudioPaths(session: SessionData): Promise<SessionData> {
+  const results = await Promise.allSettled(
+    session.wordData.map(async (word) => {
+      if (word.audio_path) return word;
+      const audioFiles = word['audio_files'] as Array<{ ipa: string; role: string }> | undefined;
+      if (!audioFiles?.length) return word;
+      // Prefer "primary:pure" over "primary:schwa" — simpler IPA is more likely to resolve.
+      const primary =
+        audioFiles.find((f) => f.role === 'primary:pure') ??
+        audioFiles.find((f) => f.role.startsWith('primary')) ??
+        audioFiles[0];
+      // Build candidate list: with slashes first, then without (e.g. "/m/" → "m")
+      const stripSlashes = (ipa: string) => ipa.replace(/\//g, '');
+      const unique = [primary, ...audioFiles.filter((f) => f !== primary)];
+      const candidates = [
+        ...unique,
+        ...unique
+          .map((f) => ({ ...f, ipa: stripSlashes(f.ipa) }))
+          .filter((f) => f.ipa !== primary.ipa),
+      ];
+      for (const candidate of candidates) {
+        try {
+          const resolved = await resolveSounds(candidate.ipa);
+          if (resolved.resolved && resolved.audioPath) {
+            console.log(
+              '[Modules] resolved audio for',
+              word.id,
+              '→',
+              resolved.audioPath,
+              '(ipa:',
+              candidate.ipa,
+              ')',
+            );
+            return { ...word, audio_path: resolved.audioPath };
+          }
+          console.warn(
+            '[Modules] resolveSounds resolved:false for',
+            word.id,
+            'ipa:',
+            candidate.ipa,
+          );
+        } catch (err) {
+          console.warn('[Modules] resolveSounds threw for', word.id, 'ipa:', candidate.ipa, err);
+        }
+      }
+      console.warn(
+        '[Modules] all candidates exhausted for',
+        word.id,
+        '— no audio available. Backend sounds database may not be populated.',
+      );
+      return word;
+    }),
+  );
+  return {
+    ...session,
+    wordData: results.map((r, i) => (r.status === 'fulfilled' ? r.value : session.wordData[i])),
+  };
+}
+
+export async function getMissions(profileId: string, force = false): Promise<Mission[]> {
   const key = `cache:missions:${profileId}`;
+  if (force) {
+    await clearCache(key);
+  }
   const cached = await getCache<Mission[]>(key);
   if (cached) return cached;
 
@@ -42,11 +154,12 @@ export async function startOrResumeModule(
   const key = `cache:module:${profileId}:${moduleId}`;
   try {
     const { data } = await apiClient.post<SessionData>(`/v1/modules/${moduleId}`, { profileId });
-    await setCache(key, data, MODULE_CACHE_TTL);
-    return data;
+    const normalized = normalizeSession(data);
+    await setCache(key, normalized, MODULE_CACHE_TTL);
+    return normalized;
   } catch (err) {
     const stale = await getCacheEntry<SessionData>(key);
-    if (stale) return stale.data;
+    if (stale) return normalizeSession(stale.data);
     throw err;
   }
 }

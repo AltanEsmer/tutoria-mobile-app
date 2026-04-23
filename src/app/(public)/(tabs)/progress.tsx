@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { getProgress } from '@/services/api';
 import { useProgressStore } from '@/stores/useProgressStore';
 import { useProfileStore } from '@/stores/useProfileStore';
@@ -28,35 +29,40 @@ function ProgressScreenContent() {
 
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!activeProfile) return;
+  useFocusEffect(
+    useCallback(() => {
+      if (!activeProfile) return;
 
-    let cancelled = false;
+      let cancelled = false;
 
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getProgress(activeProfile.id);
-        if (!cancelled) {
-          setActivities(data.activities);
-          setStreakDays(data.streakDays);
+      const fetchData = async () => {
+        console.log('[Progress] focus effect fired, fetching…');
+        setLoading(true);
+        setError(null);
+        try {
+          const data = await getProgress(activeProfile.id);
+          if (!cancelled) {
+            console.log('[Progress] received activities:', data.activities.length);
+            setActivities(data.activities);
+            setStreakDays(data.streakDays);
+          }
+        } catch {
+          if (!cancelled) {
+            setError('Failed to load progress. Please try again.');
+          }
+        } finally {
+          // Always reset loading — even when cancelled — so isLoading never gets stuck true.
+          setLoading(false);
         }
-      } catch {
-        if (!cancelled) {
-          setError('Failed to load progress. Please try again.');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
+      };
 
-    fetchData();
+      fetchData();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProfile, setActivities, setLoading, setStreakDays]);
+      return () => {
+        cancelled = true;
+      };
+    }, [activeProfile, setActivities, setLoading, setStreakDays]),
+  );
 
   if (!activeProfile) {
     return (

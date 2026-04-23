@@ -6,7 +6,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAudio } from '@/hooks/useAudio';
 import { useHaptics } from '@/hooks/useHaptics';
 import { usePronunciation } from '@/hooks/usePronunciation';
-import { completeSession, completeWord, startOrResumeModule } from '@/services/api';
+import {
+  completeSession,
+  completeWord,
+  startOrResumeModule,
+  resolveSessionAudioPaths,
+} from '@/services/api';
 import { prefetchAudioFiles } from '@/services/cache';
 import { useLessonStore } from '@/stores/useLessonStore';
 import { useProfileStore } from '@/stores/useProfileStore';
@@ -42,14 +47,26 @@ export default function LessonScreen() {
     store.setError(null);
     try {
       const session = await startOrResumeModule(moduleId, activeProfile.id);
-      store.setSession(session);
-      const startWord = session.wordData[session.position] ?? session.wordData[0] ?? null;
+      // Resolve audio_path for words that only have audio_files (IPA-based curriculum format)
+      const resolvedSession = await resolveSessionAudioPaths(session);
+      store.setSession(resolvedSession);
+      if (__DEV__) {
+        console.log('[Lesson] session.wordData[0]:', JSON.stringify(resolvedSession.wordData[0]));
+        console.log(
+          '[Lesson] session.position:',
+          resolvedSession.position,
+          'totalWords:',
+          resolvedSession.totalWords,
+        );
+      }
+      const startWord =
+        resolvedSession.wordData[resolvedSession.position] ?? resolvedSession.wordData[0] ?? null;
       store.setCurrentWord(startWord);
       if (startWord?.audio_path) {
         audio.setAudioPath(startWord.audio_path);
       }
       // Pre-fetch audio for upcoming words (best-effort)
-      const audioPaths = session.wordData
+      const audioPaths = resolvedSession.wordData
         .slice(0, MAX_PREFETCH_WORDS)
         .map((w) => w.audio_path)
         .filter((p): p is string => !!p);
@@ -57,8 +74,14 @@ export default function LessonScreen() {
         // Audio pre-fetch is best-effort
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to load lesson';
-      store.setError(message);
+      const isAxiosLike = (e: unknown): e is { response?: { status?: number } } =>
+        typeof e === 'object' && e !== null && 'response' in e;
+      if (isAxiosLike(err) && err.response?.status === 404) {
+        store.setError('This lesson is not available right now. Try a different card.');
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to load lesson';
+        store.setError(message);
+      }
     } finally {
       store.setLoading(false);
     }
@@ -125,6 +148,8 @@ export default function LessonScreen() {
           wordId: currentWord.id,
           isCorrect,
         });
+        // Invalidate the progress store so the next Progress-tab focus fetches fresh data.
+        useProgressStore.getState().invalidate();
       } catch {
         // Queue failed request for offline sync
         useProgressStore.getState().addToQueue({
@@ -170,15 +195,21 @@ export default function LessonScreen() {
 
   // ─── Record + check pronunciation ─────────────────────────────────────────
   const handleRecordStop = useCallback(async () => {
-    if (!currentWord) return;
+    // Always read fresh word from the store to avoid stale-closure issues.
+    const freshWord = useLessonStore.getState().currentWord;
+    if (!freshWord) return;
+    if (__DEV__) {
+      console.log('[Lesson] currentWord:', JSON.stringify(freshWord));
+    }
     const result = await pronunciation.stopAndCheck(
-      currentWord.display_text,
-      currentWord.target_ipa ?? '',
+      freshWord.display_text,
+      freshWord.target_ipa ?? '',
     );
     if (!result) return;
 
+    const freshWordId = freshWord.id;
     const passed = result.overallIsCorrect || result.similarity >= PASSING_THRESHOLD;
-    store.recordAttempt(wordId, passed, result);
+    store.recordAttempt(freshWordId, passed, result);
     setFeedbackResult(result);
 
     if (passed) {
@@ -187,7 +218,7 @@ export default function LessonScreen() {
       haptics.warningHaptic();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentWord, wordId]);
+  }, []);
 
   const handleRetry = useCallback(() => {
     setFeedbackResult(null);
@@ -199,6 +230,11 @@ export default function LessonScreen() {
       (feedbackResult?.similarity ?? 0) >= PASSING_THRESHOLD;
     advanceToNextWord(isPassing);
   }, [feedbackResult, advanceToNextWord]);
+
+  const handleRecordStart = useCallback(async () => {
+    audio.stop();
+    await pronunciation.startRecording();
+  }, [audio, pronunciation]);
 
   const handleSkip = useCallback(() => {
     store.markWordFailed(wordId);
@@ -221,17 +257,26 @@ export default function LessonScreen() {
         <Text testID="lesson-error-text" style={styles.errorText}>
           {store.error}
         </Text>
-        <Pressable
-          testID="lesson-retry-button"
-          style={styles.button}
-          onPress={() => {
-            store.setError(null);
-            hasLoadedRef.current = false;
-            loadModule();
-          }}
-        >
-          <Text style={styles.buttonText}>Retry</Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <Pressable
+            testID="lesson-retry-button"
+            style={styles.button}
+            onPress={() => {
+              store.setError(null);
+              hasLoadedRef.current = false;
+              loadModule();
+            }}
+          >
+            <Text style={styles.buttonText}>Retry</Text>
+          </Pressable>
+          <Pressable
+            testID="lesson-go-home-button-error"
+            style={styles.button}
+            onPress={() => router.push('/')}
+          >
+            <Text style={styles.buttonText}>Go Home</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -318,9 +363,15 @@ export default function LessonScreen() {
       <View style={styles.actionsSection}>
         <Pressable
           testID="lesson-play-button"
-          style={[styles.actionButton, audio.isLoading && styles.disabledButton]}
-          disabled={audio.isLoading}
-          onPress={() => audio.play(currentWord.audio_path ?? '')}
+          style={[
+            styles.actionButton,
+            (audio.isLoading || !currentWord.audio_path) && styles.disabledButton,
+          ]}
+          disabled={audio.isLoading || !currentWord.audio_path}
+          onPress={() => {
+            console.log('[Audio] play button pressed, audio_path:', currentWord.audio_path);
+            audio.play(currentWord.audio_path ?? '');
+          }}
         >
           <Text style={styles.actionButtonText}>
             {audio.isLoading ? '⏳' : audio.audioError ? '⚠️' : '🔊'} Play
@@ -335,7 +386,7 @@ export default function LessonScreen() {
             isInteractionDisabled && styles.disabledButton,
           ]}
           disabled={isInteractionDisabled}
-          onPressIn={pronunciation.startRecording}
+          onPressIn={handleRecordStart}
           onPressOut={handleRecordStop}
         >
           <Text style={styles.actionButtonText}>
@@ -347,6 +398,20 @@ export default function LessonScreen() {
           </Text>
         </Pressable>
       </View>
+
+      {/* Audio error — shown inline under action buttons */}
+      {audio.audioError ? (
+        <Text testID="lesson-audio-error" style={styles.audioErrorText}>
+          {audio.audioError}
+        </Text>
+      ) : null}
+
+      {/* Pronunciation hook error — shown when stopAndCheck guard fires or API fails */}
+      {pronunciation.error && !feedbackResult ? (
+        <Text testID="lesson-pronunciation-error" style={styles.pronunciationErrorText}>
+          {pronunciation.error}
+        </Text>
+      ) : null}
 
       {/* Skip button — hidden while feedback is showing or checking */}
       {!feedbackResult && !pronunciation.isChecking ? (
@@ -499,6 +564,23 @@ const styles = StyleSheet.create({
     color: '#E71D36',
     textAlign: 'center',
     marginBottom: 20,
+  },
+  audioErrorText: {
+    fontSize: 14,
+    fontFamily: 'Lexend_400Regular',
+    color: '#E71D36',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  pronunciationErrorText: {
+    fontSize: 14,
+    fontFamily: 'Lexend_400Regular',
+    color: '#E71D36',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 4,
+    paddingHorizontal: 8,
   },
   placeholderText: {
     fontSize: 18,

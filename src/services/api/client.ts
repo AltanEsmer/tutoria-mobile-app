@@ -43,6 +43,11 @@ export function setAuthToken(_token: string | null): void {
   // no-op until Phase 4
 }
 
+/** Returns the current Authorization header value for use in native fetch contexts (e.g. FileSystem.downloadAsync). */
+export function getAuthHeader(): string {
+  return `Bearer ${BYPASS_TOKEN}`;
+}
+
 // Request interceptor — injects the static bypass token on every request
 // TODO Phase 4: Replace with Clerk JWT from _getToken()
 apiClient.interceptors.request.use((config) => {

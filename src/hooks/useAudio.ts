@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createAudioPlayer } from 'expo-audio';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
-import { getAudioProxyUrl } from '../services/api/audio';
-import { getCachedAudioUri } from '../services/cache';
+import { downloadAndCacheAudio, getCachedAudioUri } from '../services/cache';
 
 interface UseAudioOptions {
   /** When true, calling `setAudioPath` will immediately trigger playback. */
@@ -37,20 +36,55 @@ export function useAudio(options?: UseAudioOptions) {
    */
   const loadAndPlay = useCallback(
     async (r2Path: string) => {
+      if (!r2Path || r2Path.trim() === '') {
+        console.warn('[Audio] play called with empty r2Path');
+        setAudioError('No audio available for this word');
+        setIsLoading(false);
+        return;
+      }
+      console.log('[Audio] loadAndPlay start, r2Path:', r2Path);
       setIsLoading(true);
       setAudioError(null);
       try {
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+        console.log('[Audio] mode switched to playback');
         cleanupPlayer();
-        // Cache-first: check local cache before network
+        // Cache-first: check local cache, then download with auth before handing to native player
         const cachedUri = await getCachedAudioUri(r2Path);
-        const uri = cachedUri ?? getAudioProxyUrl(r2Path);
-        const player = createAudioPlayer({ uri });
+        console.log('[Audio] cache', cachedUri ? 'hit' : 'miss', cachedUri ?? '(none)');
+        let localUri: string | null;
+        if (cachedUri) {
+          localUri = cachedUri;
+        } else {
+          console.log('[Audio] downloading from proxy…');
+          localUri = await downloadAndCacheAudio(r2Path);
+          console.log('[Audio] download complete, localUri:', localUri);
+        }
+        if (!localUri) throw new Error(`Failed to load audio for path: ${r2Path}`);
+        console.log('[Audio] creating player');
+        const player = createAudioPlayer(localUri);
         playerRef.current = player;
         player.play();
+        console.log('[Audio] play() called');
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Audio playback failed';
         setAudioError(message);
         console.error('[Audio] Playback failed:', err);
+        try {
+          if (err != null && typeof err === 'object') {
+            const e = err as Record<string, unknown>;
+            console.log(
+              '[Audio] error details — name:',
+              e['name'],
+              'code:',
+              e['code'],
+              'status:',
+              e['status'],
+            );
+          }
+        } catch {
+          // defensive: ignore secondary errors while logging error properties
+        }
       } finally {
         setIsLoading(false);
       }

@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { getAudioProxyUrl } from '../api/audio';
+import { getAuthHeader } from '../api/client';
 
 function getAudioCacheDir(): string {
   return `${FileSystem.cacheDirectory}audio/`;
@@ -27,6 +28,25 @@ export async function getCachedAudioUri(r2Path: string): Promise<string | null> 
   return info.exists ? localUri : null;
 }
 
+/**
+ * Downloads an audio file from the proxy (with auth) and caches it locally.
+ * Returns the local file URI on success.
+ */
+export async function downloadAndCacheAudio(r2Path: string): Promise<string> {
+  await ensureCacheDirExists();
+  const filename = r2PathToFilename(r2Path);
+  const localUri = `${getAudioCacheDir()}${filename}`;
+  const downloadUrl = getAudioProxyUrl(r2Path);
+  const result = await FileSystem.downloadAsync(downloadUrl, localUri, {
+    headers: { Authorization: getAuthHeader() },
+  });
+  console.log('[AudioCache] downloadAsync status:', result.status, 'localUri:', result.uri);
+  if (result.status !== 200) {
+    throw new Error('Audio proxy returned status ' + result.status + ' for path ' + r2Path);
+  }
+  return localUri;
+}
+
 export async function prefetchAudioFiles(r2Paths: string[]): Promise<void> {
   await ensureCacheDirExists();
 
@@ -39,7 +59,9 @@ export async function prefetchAudioFiles(r2Paths: string[]): Promise<void> {
       const localUri = `${getAudioCacheDir()}${filename}`;
       const downloadUrl = getAudioProxyUrl(r2Path);
 
-      await FileSystem.downloadAsync(downloadUrl, localUri);
+      await FileSystem.downloadAsync(downloadUrl, localUri, {
+        headers: { Authorization: getAuthHeader() },
+      });
     }),
   );
 }
