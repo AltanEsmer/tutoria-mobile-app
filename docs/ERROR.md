@@ -493,3 +493,15 @@ Also added `useAudioRecorderState` for metering, `peakDetected` silence gate (sk
 **Fix:** In `advanceToNextWord` (`src/app/(public)/lesson/[moduleId].tsx`), after `completeWord` succeeds, also call `saveProgress(profileId, wordId, { isCorrect, displayText })`. The offline queue `catch` branch now also enqueues a `saveProgress` item alongside the `completeWord` item so both sync when connectivity is restored.
 
 **Generalized rule:** When the backend has separate endpoints for session state and analytics/progress history, both must be called from the client. A successful `completeWord` does NOT imply a progress record was written — check the API schema for separate tables.
+
+---
+
+## Play button disabled in some modules — `audio_files` shape mismatch
+
+**Symptom:** Audio play button works in module 1-1 but is disabled / silent in module 2-1 (and other modules). Only one word per session resolves successfully; the rest fall through with no `audio_path`.
+
+**Cause:** `resolveSessionAudioPaths` in `src/services/api/modules.ts` assumed `audio_files` was always `Array<{ipa, role}>`. Some modules return it as `Array<string>` of raw IPAs (e.g. `["/kæt/","/k/","/æ/","/t/"]`). On string entries, `f.role` is `undefined`, the `find` calls miss, fallback `audioFiles[0]` returns a raw string, and `.ipa` on that string is `undefined` → `resolveSounds(undefined)` is called for every word and silently fails.
+
+**Fix:** Normalize `audio_files` to the canonical `{ipa, role}` shape at the top of the per-word resolver. String entries are wrapped: index 0 → `role: 'primary:pure'`, rest → `role: 'phoneme'`.
+
+**Generalized rule:** Any field coming from the curriculum JSON that has shape variability across modules (raw vs object, snake vs camel, scalar vs array) MUST be normalized at the API service boundary before the resolver/parser logic runs. Treat the boundary as the only place that knows about backend variants — never sprinkle shape checks through downstream code.

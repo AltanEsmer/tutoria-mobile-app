@@ -83,12 +83,24 @@ export async function resolveSessionAudioPaths(session: SessionData): Promise<Se
   const results = await Promise.allSettled(
     session.wordData.map(async (word) => {
       if (word.audio_path) return word;
-      const audioFiles = word['audio_files'] as Array<{ ipa: string; role: string }> | undefined;
-      if (!audioFiles?.length) return word;
+      // audio_files comes in two shapes depending on curriculum source:
+      //   (A) Array<{ipa, role}>  — newer curriculum JSON with role hints
+      //   (B) Array<string>       — older modules store raw IPA strings (e.g. ["/kæt/","/k/"])
+      // Normalize to shape (A) before any role-based filtering. The first entry in shape (B)
+      // is treated as primary by convention.
+      const rawFiles = word['audio_files'] as
+        | Array<{ ipa: string; role: string } | string>
+        | undefined;
+      if (!rawFiles?.length) return word;
+      const audioFiles = rawFiles.map((entry, idx) =>
+        typeof entry === 'string'
+          ? { ipa: entry, role: idx === 0 ? 'primary:pure' : 'phoneme' }
+          : entry,
+      );
       // Prefer "primary:pure" over "primary:schwa" — simpler IPA is more likely to resolve.
       const primary =
         audioFiles.find((f) => f.role === 'primary:pure') ??
-        audioFiles.find((f) => f.role.startsWith('primary')) ??
+        audioFiles.find((f) => f.role?.startsWith('primary')) ??
         audioFiles[0];
       // Build candidate list: with slashes first, then without (e.g. "/m/" → "m")
       const stripSlashes = (ipa: string) => ipa.replace(/\//g, '');
