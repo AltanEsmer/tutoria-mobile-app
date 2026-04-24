@@ -479,3 +479,17 @@ Also added `useAudioRecorderState` for metering, `peakDetected` silence gate (sk
 - `progress.tsx`: added `useEffect` watching `lastInvalidatedAt` — when it changes while the tab is already focused, triggers an immediate re-fetch via `setTimeout(0)`.
 
 **Generalized rule:** Any store `invalidate()` that clears data must also set a timestamp/counter field. Screens that use `useFocusEffect` for data fetching must additionally watch that timestamp via a separate `useEffect` so they re-fetch when already focused. Never rely solely on focus transitions to drive refresh.
+
+---
+
+### Progress table never populated — "Words Practiced" always empty
+
+**Context:** Progress tab showed 0 streak and no word activity even after correctly completing words in a lesson.
+
+**Error:** `GET /v1/progress/:profileId` returns empty `activities: []` at all times.
+
+**Cause:** The backend has two separate tables: `module_progress` (session state, updated by `POST /v1/modules/:moduleId/word`) and `progress` (per-word activity history, updated by `POST /v1/progress/:profileId/:activityId`). The lesson flow called `completeWord` which only updates `module_progress`, but never called `saveProgress` — so the `progress` table was always empty and `GET /v1/progress` always returned nothing.
+
+**Fix:** In `advanceToNextWord` (`src/app/(public)/lesson/[moduleId].tsx`), after `completeWord` succeeds, also call `saveProgress(profileId, wordId, { isCorrect, displayText })`. The offline queue `catch` branch now also enqueues a `saveProgress` item alongside the `completeWord` item so both sync when connectivity is restored.
+
+**Generalized rule:** When the backend has separate endpoints for session state and analytics/progress history, both must be called from the client. A successful `completeWord` does NOT imply a progress record was written — check the API schema for separate tables.

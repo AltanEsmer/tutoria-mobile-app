@@ -9,6 +9,7 @@ import { usePronunciation } from '@/hooks/usePronunciation';
 import {
   completeSession,
   completeWord,
+  saveProgress,
   startOrResumeModule,
   resolveSessionAudioPaths,
 } from '@/services/api';
@@ -150,10 +151,15 @@ export default function LessonScreen() {
           wordId: currentWord.id,
           isCorrect,
         });
+        // Write to the progress table so GET /v1/progress reflects this attempt.
+        await saveProgress(activeProfile.id, currentWord.id, {
+          isCorrect,
+          displayText: currentWord.display_text,
+        });
         // Invalidate the progress store so the next Progress-tab focus fetches fresh data.
         useProgressStore.getState().invalidate();
       } catch {
-        // Queue failed request for offline sync
+        // Queue failed requests for offline sync
         useProgressStore.getState().addToQueue({
           type: 'completeWord',
           endpoint: `/v1/modules/${moduleId}/word`,
@@ -161,6 +167,14 @@ export default function LessonScreen() {
             profileId: activeProfile.id,
             wordId: currentWord.id,
             isCorrect,
+          },
+        });
+        useProgressStore.getState().addToQueue({
+          type: 'saveProgress',
+          endpoint: `/v1/progress/${activeProfile.id}/${currentWord.id}`,
+          payload: {
+            isCorrect,
+            displayText: currentWord.display_text,
           },
         });
       } finally {
