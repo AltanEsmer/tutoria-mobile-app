@@ -51,6 +51,7 @@ export default function LessonScreen() {
       // Resolve audio_path for words that only have audio_files (IPA-based curriculum format)
       const resolvedSession = await resolveSessionAudioPaths(session);
       store.setSession(resolvedSession);
+      store.hydrateFromSession(resolvedSession);
       if (__DEV__) {
         console.log('[Lesson] session.wordData[0]:', JSON.stringify(resolvedSession.wordData[0]));
         console.log(
@@ -144,6 +145,8 @@ export default function LessonScreen() {
         autoAdvanceTimerRef.current = null;
       }
 
+      const activityKey = (currentWord.display_text ?? '').trim();
+
       setIsSubmitting(true);
       try {
         await completeWord(moduleId, {
@@ -152,10 +155,17 @@ export default function LessonScreen() {
           isCorrect,
         });
         // Write to the progress table so GET /v1/progress reflects this attempt.
-        await saveProgress(activeProfile.id, currentWord.id, {
-          isCorrect,
-          displayText: currentWord.display_text,
-        });
+        // Use display_text as the stable activity identifier — curriculum word IDs are
+        // R2-local and may not match D1 activity UUIDs. display_text is consistent and
+        // the backend uses it to find-or-create the activity record.
+        // Guard: skip saveProgress entirely when display_text is empty (some R2 curriculum
+        // words carry only audio_files IPA payloads and have no display_text).
+        if (activityKey) {
+          await saveProgress(activeProfile.id, activityKey, {
+            isCorrect,
+            displayText: activityKey,
+          });
+        }
         // Invalidate the progress store so the next Progress-tab focus fetches fresh data.
         useProgressStore.getState().invalidate();
       } catch {
@@ -169,14 +179,16 @@ export default function LessonScreen() {
             isCorrect,
           },
         });
-        useProgressStore.getState().addToQueue({
-          type: 'saveProgress',
-          endpoint: `/v1/progress/${activeProfile.id}/${currentWord.id}`,
-          payload: {
-            isCorrect,
-            displayText: currentWord.display_text,
-          },
-        });
+        if (activityKey) {
+          useProgressStore.getState().addToQueue({
+            type: 'saveProgress',
+            endpoint: `/v1/progress/${activeProfile.id}/${encodeURIComponent(activityKey)}`,
+            payload: {
+              isCorrect,
+              displayText: activityKey,
+            },
+          });
+        }
       } finally {
         setIsSubmitting(false);
       }

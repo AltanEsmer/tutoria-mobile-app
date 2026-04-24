@@ -11,5 +11,17 @@ export async function saveProgress(
   activityId: string,
   req: SaveProgressRequest,
 ): Promise<void> {
-  await apiClient.post(`/v1/progress/${profileId}/${activityId}`, req);
+  if (!activityId.trim() || !req.displayText.trim()) {
+    console.warn(
+      `[API] saveProgress skipped — empty activityId/displayText for profile ${profileId}`,
+    );
+    return;
+  }
+
+  const url = `/v1/progress/${profileId}/${encodeURIComponent(activityId)}`;
+  if (__DEV__) {
+    console.debug('[API] saveProgress →', url, req);
+  }
+
+  await apiClient.post(url, req);
 }

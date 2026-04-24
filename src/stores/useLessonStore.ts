@@ -33,6 +33,7 @@ interface LessonStore {
   reset: () => void;
 
   // ─── New actions ──────────────────────────────────────────────
+  hydrateFromSession: (session: SessionData) => void;
   recordAttempt: (wordId: string, passed: boolean, feedback?: PronunciationCheckResponse) => void;
   advanceWord: () => void;
   markWordCompleted: (wordId: string) => void;
@@ -74,6 +75,19 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
   reset: () => set({ currentSession: null, currentWord: null, isLoading: false, error: null }),
 
   // ─── New actions ──────────────────────────────────────────────
+  hydrateFromSession: (session) => {
+    const position = session.position ?? 0;
+    const completedWords = session.completedWords ?? [];
+    const totalWords = session.wordData?.length ?? session.totalWords ?? 0;
+    set({
+      currentWordIndex: position,
+      completedWords,
+      failedWords: session.failedWords ?? [],
+      sessionScore: completedWords.length,
+      sessionComplete: totalWords > 0 && position >= totalWords,
+    });
+  },
+
   recordAttempt: (wordId, passed, feedback) => {
     const attempts = (get().wordAttempts[wordId] || 0) + 1;
 

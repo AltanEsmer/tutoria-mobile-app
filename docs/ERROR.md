@@ -505,3 +505,45 @@ Also added `useAudioRecorderState` for metering, `peakDetected` silence gate (sk
 **Fix:** Normalize `audio_files` to the canonical `{ipa, role}` shape at the top of the per-word resolver. String entries are wrapped: index 0 → `role: 'primary:pure'`, rest → `role: 'phoneme'`.
 
 **Generalized rule:** Any field coming from the curriculum JSON that has shape variability across modules (raw vs object, snake vs camel, scalar vs array) MUST be normalized at the API service boundary before the resolver/parser logic runs. Treat the boundary as the only place that knows about backend variants — never sprinkle shape checks through downstream code.
+
+---
+
+## saveProgress 500 — curriculum word ID used as D1 activityId
+
+**Symptom:** `ERROR [API] 500: Failed to save progress` when completing a word in a lesson.
+
+**Cause:** `saveProgress` was called with `currentWord.id` as the `activityId` URL parameter. Curriculum word IDs come from R2 JSON files and are R2-local identifiers (e.g. slug strings) — they do NOT match the UUIDs in the D1 `activities` table. The backend tried to find or create an activity using this foreign ID, which fails D1 insertion.
+
+**Fix:** Use `currentWord.display_text` as the `activityId` (URL-encoded via `encodeURIComponent` in `saveProgress`). The display text is a stable, human-readable identifier that the backend uses as the activity's `displayText` field for find-or-create. The offline queue endpoint was updated to match. (`src/services/api/progress.ts` + `src/app/(public)/lesson/[moduleId].tsx`)
+
+**Generalized rule:** The `activityId` in `POST /v1/progress/:profileId/:activityId` must be a D1-compatible identifier. Curriculum/R2 word IDs are NOT activity IDs — use `display_text` (the word itself) as the stable cross-table key. Always `encodeURIComponent` path segments that may contain spaces or special characters.
+
+---
+
+## saveProgress 500 — empty display_text produces collapsed activityId URL
+
+**Symptom:** `ERROR [API] 500: Failed to save progress` on every word completion, even after the fix to use `display_text` instead of `currentWord.id`. The Progress tab shows nothing or stale data.
+
+**Cause:** `normalizeWordData()` in `src/services/api/modules.ts` falls back to `display_text = ''` when both `display_text` and `displayText` are absent on the raw word record (some R2 curriculum words carry only `audio_files` IPA payloads and no display text). With an empty string, `encodeURIComponent('')` returns `''`, so the constructed URL becomes `/v1/progress/{profileId}/` — a path with an empty `:activityId` segment — and the backend returns 500.
+
+**Fix:** Two-layer guard:
+1. **Service layer** (`src/services/api/progress.ts`): `saveProgress` now checks `activityId.trim()` and `req.displayText.trim()` before making the request. If either is empty/whitespace, it logs `console.warn('[API] saveProgress skipped — empty activityId/displayText for profile X')` and returns early without calling the backend. A `__DEV__` `console.debug` also logs the resolved URL and payload before each real request.
+2. **Call site** (`src/app/(public)/lesson/[moduleId].tsx`): `activityKey = (currentWord.display_text ?? '').trim()` is computed once. Both the `saveProgress` call and its offline-queue enqueue are wrapped in `if (activityKey) { … }`, so words with no `display_text` never generate a broken request or a useless offline payload. `completeWord` and its offline enqueue are unaffected.
+
+**Generalized rule:** Before using any field derived from curriculum/R2 JSON as a URL path segment, guard for empty/whitespace at both the call site (skip the call entirely) and at the service boundary (defensive early-return). A silent normalizer fallback to `''` can propagate far from its source — adding defensive guards at two layers catches it regardless of which layer is reached first.
+
+---
+
+## Lesson restarts from word 1 on resume — useLessonStore not hydrated from SessionData.position
+
+### Lesson restarts from word 1 on resume
+
+**Context:** User completes some words in a module (e.g. reaches word 5 of 7), quits the lesson screen (back button or force-kill), then reopens the same module via NFC or the missions list.
+
+**Error (symptom):** Progress bar shows "Word 1 of N" instead of the expected resume position. After the first pronunciation attempt, `advanceWord()` increments from index 0 → 1, discarding the real backend-tracked position. Words already marked completed/failed by the backend are not honoured client-side.
+
+**Cause:** `loadModule()` in `src/app/(public)/lesson/[moduleId].tsx` called `store.setSession(resolvedSession)` to store the `SessionData` returned by the backend (which includes `session.position`, `completedWords`, and `failedWords`), but never wrote those values into `useLessonStore`'s session-tracking fields (`currentWordIndex`, `completedWords`, `failedWords`, `sessionScore`). The store was initialised with `sessionDefaults` (index 0, empty arrays) and was never hydrated from the backend response.
+
+**Fix:** Added a `hydrateFromSession(session: SessionData)` action to `useLessonStore` that atomically sets `currentWordIndex = session.position ?? 0`, `completedWords = session.completedWords ?? []`, `failedWords = session.failedWords ?? []`, `sessionScore = completedWords.length` (reflecting prior progress on the results screen), and guards `sessionComplete = true` if `position >= totalWords`. In `loadModule()`, `store.hydrateFromSession(resolvedSession)` is called immediately after `store.setSession(resolvedSession)` and before `store.setCurrentWord(startWord)`, so all subsequent store reads (progress bar, `advanceWord`) operate from the correct resume position. (`src/stores/useLessonStore.ts` + `src/app/(public)/lesson/[moduleId].tsx`)
+
+**Generalized rule:** Whenever a store holds derived tracking state (indexes, counters, arrays) that mirrors a backend model, there must be an explicit hydration action that writes ALL fields from the backend response in a single atomic `set()` call. Calling only `setSession(data)` while leaving tracking fields at their defaults silently diverges client state from server state — especially after navigation away and back.
