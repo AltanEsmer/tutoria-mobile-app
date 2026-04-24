@@ -2,6 +2,9 @@ import axios from 'axios';
 import { API_BASE_URL } from '../../utils/constants';
 
 declare module 'axios' {
+  export interface AxiosRequestConfig {
+    _silenceErrorLogging?: boolean;
+  }
   export interface InternalAxiosRequestConfig {
     _isRetry?: boolean;
     /**
