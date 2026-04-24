@@ -408,3 +408,74 @@ D. Added `__DEV__` diagnostic logs: `[Lesson] session.wordData[0]` after `setSes
 **Cause:** The backend pronunciation model is returning 0% similarity for all audio. Since `audioIssue` is absent, the backend did decode the audio — this is likely a model configuration or model availability issue on the backend (wrong environment, model not loaded, speech recognition service not connected). Client-side audio is valid: file size ~79KB, base64 ~105KB, targetIPA now correctly populated.
 **Fix:** No client fix applicable. The similarity IS on a 0–100 scale (not 0–1). The ScoreBadge, PASSING_THRESHOLD=80, and API response scale are all consistent. Root cause is backend.
 **Generalised rule:** When `similarity: 0` appears with no `audioIssue`, the audio was decoded but the model failed to produce a match — check backend model/service availability rather than client audio encoding.
+
+---
+
+### Pronunciation always returns `similarity: 0` — AAC bytes inside `.wav` container (root cause)
+
+**Context:** `usePronunciation.ts` — `useAudioRecorder(RecordingPresets.HIGH_QUALITY)` on iOS
+**Error:** API returns `similarity: 0` / `resultType: "FAIL"` for all iOS recordings despite valid audio. The previous error entry suspected the backend model; the actual root cause is client-side audio encoding.
+**Cause:** `RecordingPresets.HIGH_QUALITY` does not set an explicit `ios.outputFormat`. iOS `AVAudioRecorder` then defaults to MPEG4-AAC encoding and writes AAC bytes into a file named `.wav`. The server's WAV decoder parses the container header, extracts the raw bytes, and forwards them to Azure Speech as PCM. Azure receives AAC data masquerading as PCM — transcription fails, forced alignment produces 0 similarity.
+**Fix:** Replaced `RecordingPresets.HIGH_QUALITY` with an explicit recorder config in `usePronunciation.ts`:
+- `ios.outputFormat: IOSOutputFormat.LINEARPCM` — forces real PCM encoding
+- `ios.audioQuality: AudioQuality.HIGH`, `linearPCMBitDepth: 16`, `linearPCMIsBigEndian: false`, `linearPCMIsFloat: false`
+- `sampleRate: 16000`, `numberOfChannels: 1` — matches Azure Speech expected input
+Also added `useAudioRecorderState` for metering, `peakDetected` silence gate (skips silent clips without incrementing failure counter), explicit `audioFormat: 'wav'` + `unitType: 'word'` + `language: 'english'` + `profileId` + `validation` in the request payload.
+**Generalised rule:** Never rely on a "HIGH_QUALITY" preset for platform-specific audio encoding — always specify `outputFormat` explicitly on iOS. When Azure Speech returns all-zero scores with no `audioIssue`, first verify the audio container actually contains the codec it claims to before blaming the model.
+
+---
+
+### Sounds-resolve `publicUrl`/`publicUrls`/`path` fields silently dropped → Play button stayed disabled
+
+**Context:** `resolveSessionAudioPaths` in `src/services/api/modules.ts` — every lesson load
+**Error:** All resolutions reported `resolved:false` and warned "backend sounds database not populated", but `audio_path` stayed `undefined` even on words whose IPA the backend HAD resolved. Play button rendered disabled (`disabled={!currentWord.audio_path}`).
+**Cause:** `SoundsResolveResponse` was typed only as `{ resolved, audioPath, acceptableIPAs }`. The actual API response (per `docs/audio-api-integration.md` §4.1) carries `publicUrls[]` (compound mode), `publicUrl` (single), and `path` (proxy fallback). The client read only `audioPath` — when the resolver returned a CDN URL via `publicUrl`/`publicUrls`, it was discarded as "unresolved". This was misdiagnosed as a backend data issue.
+**Fix:** Extended `SoundsResolveResponse` with `publicUrls?: string[]; publicUrl?: string; path?: string`. Rewrote `resolveSessionAudioPaths` to honour the supervisor's URL priority: `publicUrls[0] → publicUrl → getAudioProxyUrl(path) → getAudioProxyUrl(audioPath)`. CDN URLs are used directly; R2 paths are wrapped through the auth-required proxy.
+**Generalised rule:** When the API response shape evolves (especially adding richer URL variants), the TypeScript interface MUST be the single source of truth. Before blaming a backend for "missing data", grep the response handler for every field name documented in the contract — silently dropping a populated field looks identical to a backend returning nothing.
+
+---
+
+### Missing boot-time `setAudioModeAsync` → silent app on muted iOS devices
+
+**Context:** App startup — `src/app/_layout.tsx`
+**Error:** Play button "works" (no error, state transitions correctly) but no audible sound on iPhone with the ring/silent switch flipped to silent. Symptom only reproducible on hardware, not on simulator (which ignores the silent switch).
+**Cause:** No boot-time `setAudioModeAsync` call existed. iOS defaults playback to "ambient" category which honours the hardware mute switch. Children's devices are almost always muted; without `playsInSilentMode: true` the app appears broken.
+**Fix:** Added one boot-time `setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'duckOthers', shouldPlayInBackground: false })` in `RootLayoutInner`. Wrapped in try/catch (non-fatal). Crucially does NOT set `allowsRecording: true` — that flag puts iOS into `PlayAndRecord` mode which routes output to the earpiece (not the speaker). `allowsRecording` is toggled locally inside `usePronunciation.ts` only for the capture window.
+**Generalised rule:** Every Expo/React Native app that plays audio must call `setAudioModeAsync({ playsInSilentMode: true })` exactly once at boot. The grep gate is "exactly 1 boot call + 2 calls inside the recorder hook = 3 total in `src/`". More than that means a stray surface is overriding the global session and routing audio to the wrong sink.
+
+---
+
+---
+
+## peakDetected silence gate too strict — "We couldn't hear you" on normal speech
+
+**Symptom:** Hold-to-record returns "We couldn't hear you — try holding the button while speaking clearly" even when the child is speaking at normal volume. No POST is made; the attempt is silently discarded.
+
+**Cause:** Two compounding bugs in `src/hooks/usePronunciation.ts` metering effect:
+1. **Calibration window too long.** Required 800ms / 10 frames before the noise floor was set, and the effect early-returned during that window. Short presses (single short words like "cat", "the") frequently release in <800ms, so `isCalibrationDoneRef` stays false and `peakDetected` can never fire — guaranteed silence-gate trip.
+2. **Calibration self-poisoning.** If the user starts speaking immediately on press, the calibration averages their voice into the noise floor (capped at 0.35). After calibration, sustained speech rarely exceeds that inflated floor for 5 consecutive frames.
+
+**Fix:** Two parallel detection paths — Path A (peak ≥ 0.35 in any single frame, evaluated even during calibration) and Path B (sustained frames above noise floor, post-calibration). Either firing sets `peakDetected = true`. Calibration window shortened to 240ms. Frame requirement reduced from 5 to 3. Diagnostic log on stop emits `{peakDetected, peakLevel, noiseFloor, calibrated}` for future tuning.
+
+**Generalized rule:** Client-side VAD/silence gates must have a fast-path that survives without calibration — short user interactions can complete before any calibration window the gate assumes. Always log gate decisions so threshold misses can be traced; a silently-dropped POST is indistinguishable from a server failure.
+
+---
+
+### Progress tab not updating after lesson completion
+
+**Context:** After completing words or a full lesson session, navigating to the Progress tab showed no changes.
+
+**Error:** Progress tab displayed stale (empty or outdated) activities after lesson completion.
+
+**Cause:** Three related invalidation gaps:
+1. `completeSession()` in `[moduleId].tsx` was fire-and-forget with no `invalidate()` call — if the backend records progress on session completion, the cache was never marked stale.
+2. `drainQueue()` in `_layout.tsx` synced offline word completions on reconnect but never called `invalidate()` afterward.
+3. `invalidate()` clears `activities: []` synchronously — if the Progress tab was already focused when `invalidate()` fired (e.g., drainQueue path), `useFocusEffect` wouldn't re-trigger, leaving the tab blank permanently.
+
+**Fix:**
+- `[moduleId].tsx`: chained `.then(() => useProgressStore.getState().invalidate())` onto `completeSession()`.
+- `_layout.tsx`: chained `.then(() => useProgressStore.getState().invalidate()).catch(() => {})` onto `drainQueue()`.
+- `useProgressStore.ts`: added `lastInvalidatedAt: number` field; `invalidate()` now sets it to `Date.now()`.
+- `progress.tsx`: added `useEffect` watching `lastInvalidatedAt` — when it changes while the tab is already focused, triggers an immediate re-fetch via `setTimeout(0)`.
+
+**Generalized rule:** Any store `invalidate()` that clears data must also set a timestamp/counter field. Screens that use `useFocusEffect` for data fetching must additionally watch that timestamp via a separate `useEffect` so they re-fetch when already focused. Never rely solely on focus transitions to drive refresh.

@@ -79,6 +79,10 @@ export interface WordData {
   display_text: string;
   target_ipa?: string;
   audio_path?: string;
+  validation?: {
+    confused: string[];
+    feedback: Record<string, string>;
+  };
   [key: string]: unknown;
 }
 
@@ -137,6 +141,7 @@ export interface PronunciationCheckRequest {
   audio: string; // base64-encoded
   displayText: string;
   targetIPA: string;
+  profileId?: string;
   language?: string;
   audioFormat?: 'wav' | 'mp3';
   unitType?: 'phoneme' | 'syllable' | 'word';
@@ -169,6 +174,12 @@ export interface SoundsResolveResponse {
   resolved: boolean;
   audioPath: string;
   acceptableIPAs: string[];
+  /** Preferred: array of public CDN URLs (compound mode). Use publicUrls[0] first. */
+  publicUrls?: string[];
+  /** Single public CDN URL (non-compound mode). */
+  publicUrl?: string;
+  /** R2 path to stream via the proxy endpoint. */
+  path?: string;
 }
 
 // ─── NFC ────────────────────────────────────────────────────────

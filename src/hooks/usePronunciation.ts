@@ -1,14 +1,32 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   useAudioRecorder,
-  RecordingPresets,
+  useAudioRecorderState,
+  IOSOutputFormat,
+  AudioQuality,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
 import { checkPronunciation } from '../services/api/pronunciation';
 import { MAX_PRONUNCIATION_FAILURES } from '../utils/constants';
-import type { PronunciationCheckResponse } from '../utils/types';
+import { useProfileStore } from '../stores/useProfileStore';
+import type { PronunciationCheckRequest, PronunciationCheckResponse } from '../utils/types';
+
+// Local alias — Stream A adds profileId to PronunciationCheckRequest in types.ts.
+type PronunciationRequestExtended = PronunciationCheckRequest & { profileId?: string };
+
+// Word-level validation hints — Stream A extends WordData with this field.
+type WordValidation = { confused: string[]; feedback: Record<string, string> };
+
+const METERING_INTERVAL_MS = 80;
+// Calibrated against real iOS device recordings of children speaking single words.
+// expo-audio metering returns negative dB; we normalize via (metering+60)/60 → [0,1].
+// Normal indoor speech peaks at ~0.45-0.70; loud speech 0.70-0.95; ambient noise 0.10-0.25.
+const MIN_SPEECH_PEAK = 0.35; // peak threshold — any frame this loud counts as speech
+const MIN_SPEECH_FRAMES = 3; // OR: 3 consecutive frames (~240ms) above noise floor
+const CALIBRATION_MS = 240; // short window — must finish before short presses release
+const MAX_DURATION_MS = 5000; // hard cap
 
 /**
  * Hook for recording audio and checking pronunciation against the Tutoria API.
@@ -19,16 +37,126 @@ export function usePronunciation() {
   const [result, setResult] = useState<PronunciationCheckResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [consecutiveFailures, setConsecutiveFailures] = useState(0);
+  const [peakDetected, setPeakDetected] = useState(false);
 
   const canSkipPronunciation = consecutiveFailures >= MAX_PRONUNCIATION_FAILURES;
 
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  // C1 — Explicit WAV config: IOSOutputFormat.LINEARPCM forces AVAudioRecorder to write real
+  // PCM into the .wav container. Without this, iOS defaults to MPEG4-AAC, the server's WAV
+  // decoder hands AAC bytes to Azure Speech as PCM, and similarity always returns 0.
+  const recorder = useAudioRecorder({
+    isMeteringEnabled: true,
+    extension: '.wav',
+    sampleRate: 16000,
+    numberOfChannels: 1,
+    bitRate: 128000,
+    android: { outputFormat: 'mpeg4', audioEncoder: 'aac' },
+    ios: {
+      outputFormat: IOSOutputFormat.LINEARPCM,
+      audioQuality: AudioQuality.HIGH,
+      linearPCMBitDepth: 16,
+      linearPCMIsBigEndian: false,
+      linearPCMIsFloat: false,
+    },
+    web: { mimeType: 'audio/webm', bitsPerSecond: 128000 },
+  });
+  const recorderState = useAudioRecorderState(recorder, METERING_INTERVAL_MS);
 
   // Guards against the race where stopAndCheck fires before recorder.record() completes.
   const isCancelledRef = useRef(false);
 
+  // C3 — Silence-gate metering refs
+  const peakRef = useRef(0); // max normalized level seen since record start
+  const peakDetectedRef = useRef(false); // ref mirror for use inside stopAndCheck callback
+  const noiseFloorRef = useRef(0.2); // calibrated from first CALIBRATION_MS; default 0.20
+  const calibrationFramesRef = useRef<number[]>([]);
+  const isCalibrationDoneRef = useRef(false);
+  const consecutiveSpeechFramesRef = useRef(0);
+  const meteringFrameCountRef = useRef(0); // diagnostic: frames received per recording
+  const lastMeteringValueRef = useRef<number | null>(null); // dedupe stale ticks across sessions
+
+  // C3 — Metering effect: normalize raw dB to [0,1] and track speech presence.
+  // expo-audio returns negative dB where 0 = max; map via (metering + 60) / 60.
+  // Two parallel speech-detection paths (whichever fires first wins):
+  //   (A) Peak-only: any single frame ≥ MIN_SPEECH_PEAK — robust against short presses
+  //       and survives even if calibration never completes.
+  //   (B) Sustained: MIN_SPEECH_FRAMES consecutive frames above calibrated noise floor.
+  useEffect(() => {
+    if (!isRecording) return;
+    const rawMetering = recorderState.metering;
+    if (rawMetering === undefined || rawMetering === null) return;
+
+    // Skip the very first tick after start if it equals the previous session's last
+    // value — useAudioRecorderState can replay a stale frame from before the reset,
+    // which would corrupt calibration with whatever the last session ended on.
+    if (
+      meteringFrameCountRef.current === 0 &&
+      lastMeteringValueRef.current !== null &&
+      rawMetering === lastMeteringValueRef.current
+    ) {
+      return;
+    }
+    lastMeteringValueRef.current = rawMetering;
+    meteringFrameCountRef.current += 1;
+
+    const normalized = Math.max(0, Math.min(1, (rawMetering + 60) / 60));
+
+    if (normalized > peakRef.current) {
+      peakRef.current = normalized;
+    }
+
+    // Calibration phase: collect first ~240ms of frames to establish noise floor.
+    // Kept short so brief presses (single short words) still complete calibration.
+    const calibrationTarget = Math.ceil(CALIBRATION_MS / METERING_INTERVAL_MS);
+    if (!isCalibrationDoneRef.current) {
+      calibrationFramesRef.current.push(normalized);
+      if (calibrationFramesRef.current.length >= calibrationTarget) {
+        const avg =
+          calibrationFramesRef.current.reduce((a, b) => a + b, 0) /
+          calibrationFramesRef.current.length;
+        noiseFloorRef.current = Math.max(0.1, Math.min(0.35, avg));
+        isCalibrationDoneRef.current = true;
+      }
+      // Path A still applies during calibration — don't return early.
+    }
+
+    // Path B — sustained speech above noise floor (only after calibration).
+    if (isCalibrationDoneRef.current) {
+      if (normalized > noiseFloorRef.current) {
+        consecutiveSpeechFramesRef.current += 1;
+      } else {
+        consecutiveSpeechFramesRef.current = 0;
+      }
+    }
+
+    if (
+      !peakDetectedRef.current &&
+      // Path A — any frame loud enough is unambiguous speech, regardless of calibration state
+      (peakRef.current >= MIN_SPEECH_PEAK ||
+        // Path B — sustained frames above calibrated noise floor
+        (isCalibrationDoneRef.current && consecutiveSpeechFramesRef.current >= MIN_SPEECH_FRAMES))
+    ) {
+      peakDetectedRef.current = true;
+      setPeakDetected(true);
+    }
+  }, [recorderState.metering, isRecording]);
+
   const startRecording = useCallback(async () => {
     isCancelledRef.current = false;
+
+    // Reset silence-gate state for this recording session.
+    // CRITICAL: every ref must be reset — leftover state from the previous attempt
+    // (e.g., a noise floor calibrated on speech, or sustained-frame counter) causes
+    // false silence-gate trips on the next press.
+    peakRef.current = 0;
+    peakDetectedRef.current = false;
+    setPeakDetected(false);
+    calibrationFramesRef.current = [];
+    isCalibrationDoneRef.current = false;
+    consecutiveSpeechFramesRef.current = 0;
+    noiseFloorRef.current = 0.2;
+    meteringFrameCountRef.current = 0;
+
     try {
       setError(null);
       setResult(null);
@@ -38,6 +166,7 @@ export function usePronunciation() {
 
       if (isCancelledRef.current) return;
 
+      // C4 — setAudioModeAsync call #1: enable recording mode before capture.
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
 
       if (isCancelledRef.current) return;
@@ -65,8 +194,9 @@ export function usePronunciation() {
     }
   }, [recorder]);
 
+  // C2 — stopAndCheck accepts optional validation hints to route server to Gemini Two-Sided judge.
   const stopAndCheck = useCallback(
-    async (displayText: string, targetIPA: string) => {
+    async (displayText: string, targetIPA: string, validation?: WordValidation) => {
       isCancelledRef.current = true; // signal startRecording to abort if still in flight
       setIsRecording(false);
 
@@ -80,15 +210,31 @@ export function usePronunciation() {
       try {
         await recorder.stop();
         console.log('[Pronunciation] recorder.stop() complete');
-        // Let the OS flush the m4a file to disk before reading it.
+        // Let the OS flush the wav file to disk before reading it.
         await new Promise<void>((r) => setTimeout(r, 100));
 
-        // Reset audio session to playback mode — isolated so device-level errors
-        // don't count against the pronunciation failure counter.
+        // C4 — setAudioModeAsync call #2: restore playback mode after recording.
+        // Restores iOS session to Playback so output routes to speaker, not earpiece.
         try {
           await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
         } catch {
           // Best-effort: audio mode reset failure should not affect pronunciation scoring
+        }
+
+        // C3 — Silence gate: skip the network call if no speech was detected.
+        // DO NOT increment consecutiveFailures — silence is not a pronunciation attempt.
+        console.log('[Pronunciation] silence-gate diagnostics:', {
+          peakDetected: peakDetectedRef.current,
+          peakLevel: peakRef.current.toFixed(3),
+          noiseFloor: noiseFloorRef.current.toFixed(3),
+          calibrated: isCalibrationDoneRef.current,
+          framesReceived: meteringFrameCountRef.current,
+          MIN_SPEECH_PEAK,
+          MIN_SPEECH_FRAMES,
+        });
+        if (!peakDetectedRef.current) {
+          setError("We couldn't hear you — try holding the button while speaking clearly");
+          return null;
         }
 
         const uri = recorder.uri;
@@ -132,12 +278,20 @@ export function usePronunciation() {
           return null;
         }
 
-        const checkResult = await checkPronunciation({
+        // C2 — Build request with explicit format, unit type, language, validation, and profileId.
+        const profileId = useProfileStore.getState().activeProfile?.id;
+        const request: PronunciationRequestExtended = {
           audio: base64,
           displayText,
           targetIPA,
-          // audioFormat omitted: HIGH_QUALITY preset produces .m4a; backend auto-detects format
-        });
+          audioFormat: 'wav',
+          unitType: 'word',
+          language: 'english',
+          ...(validation ? { validation } : {}),
+          ...(profileId ? { profileId } : {}),
+        };
+
+        const checkResult = await checkPronunciation(request as PronunciationCheckRequest);
 
         console.log(
           '[Pronunciation] checkResult:',
@@ -149,6 +303,12 @@ export function usePronunciation() {
             audioIssue: checkResult.audioIssue,
           }),
         );
+
+        // Infrastructure errors signaled in errorType must not count as wrong attempts.
+        if (checkResult.errorType) {
+          setError('Pronunciation check unavailable — please try again');
+          return null;
+        }
 
         setResult(checkResult);
         setConsecutiveFailures(0);
@@ -182,8 +342,13 @@ export function usePronunciation() {
     error,
     consecutiveFailures,
     canSkipPronunciation,
+    peakDetected,
     startRecording,
     stopAndCheck,
     resetFailures,
   };
 }
+
+// Suppress unused-import warning — MAX_DURATION_MS is the hard-cap constant from the
+// SPEAK pipeline spec; currently used as a reference value for future auto-stop wiring.
+void MAX_DURATION_MS;

@@ -5,10 +5,19 @@ import { PRONUNCIATION_TIMEOUT_MS } from '../../utils/constants';
 export async function checkPronunciation(
   req: PronunciationCheckRequest,
 ): Promise<PronunciationCheckResponse> {
+  const body: PronunciationCheckRequest = {
+    audioFormat: 'wav',
+    unitType: 'word',
+    language: 'english',
+    ...req,
+  };
   const { data } = await apiClient.post<PronunciationCheckResponse>(
     '/v1/pronunciation/check',
-    req,
-    { timeout: PRONUNCIATION_TIMEOUT_MS },
+    body,
+    {
+      timeout: PRONUNCIATION_TIMEOUT_MS,
+      ...(req.profileId ? { headers: { 'X-Device-Id': req.profileId } } : {}),
+    },
   );
   return data;
 }

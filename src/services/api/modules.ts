@@ -10,7 +10,7 @@ import type {
   BatchModuleStatusRequest,
 } from '../../utils/types';
 import apiClient from './client';
-import { resolveSounds } from './audio';
+import { resolveSounds, getAudioProxyUrl } from './audio';
 
 /**
  * Normalise a raw API word record to the canonical snake_case WordData shape.
@@ -36,12 +36,31 @@ function normalizeWordData(raw: Record<string, unknown>): WordData {
     (raw['audioPath'] as string | undefined) ||
     undefined;
 
+  // Extract validation — support nested object form or flat top-level keys (curriculum JSON)
+  let validation: WordData['validation'];
+  const rawValidation = raw['validation'] as
+    | { confused?: string[]; feedback?: Record<string, string> }
+    | undefined;
+  if (rawValidation && (rawValidation.confused || rawValidation.feedback)) {
+    validation = {
+      confused: rawValidation.confused ?? [],
+      feedback: rawValidation.feedback ?? {},
+    };
+  } else {
+    const confused = raw['confused'] as string[] | undefined;
+    const feedback = raw['feedback'] as Record<string, string> | undefined;
+    if (confused || feedback) {
+      validation = { confused: confused ?? [], feedback: feedback ?? {} };
+    }
+  }
+
   return {
     ...raw,
     id: (raw['id'] as string) || '',
     display_text,
     target_ipa,
     audio_path,
+    validation,
   };
 }
 
@@ -83,17 +102,33 @@ export async function resolveSessionAudioPaths(session: SessionData): Promise<Se
       for (const candidate of candidates) {
         try {
           const resolved = await resolveSounds(candidate.ipa);
-          if (resolved.resolved && resolved.audioPath) {
-            console.log(
-              '[Modules] resolved audio for',
-              word.id,
-              '→',
-              resolved.audioPath,
-              '(ipa:',
-              candidate.ipa,
-              ')',
-            );
-            return { ...word, audio_path: resolved.audioPath };
+          if (resolved.resolved) {
+            // Priority: publicUrls[0] → publicUrl → getAudioProxyUrl(path) → legacy audioPath
+            let audioUrl: string | undefined;
+            let urlField: string | undefined;
+            if (resolved.publicUrls?.[0]) {
+              audioUrl = resolved.publicUrls[0];
+              urlField = 'publicUrls[0]';
+            } else if (resolved.publicUrl) {
+              audioUrl = resolved.publicUrl;
+              urlField = 'publicUrl';
+            } else if (resolved.path) {
+              audioUrl = getAudioProxyUrl(resolved.path);
+              urlField = 'path (proxy)';
+            } else if (resolved.audioPath) {
+              audioUrl = getAudioProxyUrl(resolved.audioPath);
+              urlField = 'audioPath (legacy)';
+            }
+            if (audioUrl) {
+              console.log(
+                '[Modules] resolved audio for',
+                word.id,
+                '→',
+                audioUrl,
+                `(ipa: ${candidate.ipa}, via: ${urlField ?? 'unknown'})`,
+              );
+              return { ...word, audio_path: audioUrl };
+            }
           }
           console.warn(
             '[Modules] resolveSounds resolved:false for',

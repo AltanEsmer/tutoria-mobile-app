@@ -1,7 +1,7 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useIsFocused } from 'expo-router';
 import { getProgress } from '@/services/api';
 import { useProgressStore } from '@/stores/useProgressStore';
 import { useProfileStore } from '@/stores/useProfileStore';
@@ -26,43 +26,55 @@ function ProgressScreenContent() {
   const setActivities = useProgressStore((s) => s.setActivities);
   const setStreakDays = useProgressStore((s) => s.setStreakDays);
   const setLoading = useProgressStore((s) => s.setLoading);
+  const lastInvalidatedAt = useProgressStore((s) => s.lastInvalidatedAt);
 
   const [error, setError] = useState<string | null>(null);
+  const isFocused = useIsFocused();
+
+  const fetchData = useCallback(async () => {
+    if (!activeProfile) return;
+    let cancelled = false;
+    console.log('[Progress] fetching data…');
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getProgress(activeProfile.id);
+      if (!cancelled) {
+        console.log('[Progress] received activities:', data.activities.length);
+        setActivities(data.activities);
+        setStreakDays(data.streakDays);
+      }
+    } catch {
+      if (!cancelled) {
+        setError('Failed to load progress. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfile, setActivities, setLoading, setStreakDays]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!activeProfile) return;
-
-      let cancelled = false;
-
-      const fetchData = async () => {
-        console.log('[Progress] focus effect fired, fetching…');
-        setLoading(true);
-        setError(null);
-        try {
-          const data = await getProgress(activeProfile.id);
-          if (!cancelled) {
-            console.log('[Progress] received activities:', data.activities.length);
-            setActivities(data.activities);
-            setStreakDays(data.streakDays);
-          }
-        } catch {
-          if (!cancelled) {
-            setError('Failed to load progress. Please try again.');
-          }
-        } finally {
-          // Always reset loading — even when cancelled — so isLoading never gets stuck true.
-          setLoading(false);
-        }
-      };
-
-      fetchData();
-
+      console.log('[Progress] focus effect fired, fetching…');
+      const cleanup = fetchData();
       return () => {
-        cancelled = true;
+        cleanup?.then((c) => c?.());
       };
-    }, [activeProfile, setActivities, setLoading, setStreakDays]),
+    }, [fetchData]),
   );
+
+  useEffect(() => {
+    if (lastInvalidatedAt > 0 && isFocused && activeProfile) {
+      const id = setTimeout(() => {
+        fetchData();
+      }, 0);
+      return () => clearTimeout(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastInvalidatedAt]);
 
   if (!activeProfile) {
     return (

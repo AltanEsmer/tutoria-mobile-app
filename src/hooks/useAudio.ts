@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
-import type { AudioPlayer } from 'expo-audio';
+import { useAudioPlayer } from 'expo-audio';
 import { downloadAndCacheAudio, getCachedAudioUri } from '../services/cache';
+import warmerSource from '../../assets/audio/silence-100ms.mp3';
+
+const LOADING_GRACE_MS = 150;
+const ERROR_TIMEOUT_MS = 2000;
+const PLAY_FALLBACK_MS = 250;
+
+type PlaybackState = 'idle' | 'loading' | 'playing' | 'error';
 
 interface UseAudioOptions {
   /** When true, calling `setAudioPath` will immediately trigger playback. */
@@ -11,118 +17,149 @@ interface UseAudioOptions {
 /**
  * Hook for audio playback via the Tutoria audio proxy.
  *
- * @param options.autoPlay - When true, `setAudioPath` triggers playback automatically
- *   whenever the path changes. Defaults to false.
+ * Uses a single `useAudioPlayer` instance (primed with a warmer asset) and
+ * drives state via a `playbackStatusUpdate` listener — no per-tap player
+ * creation, no polling, no `useAudioPlayerStatus`.
  */
 export function useAudio(options?: UseAudioOptions) {
   const { autoPlay = false } = options ?? {};
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [state, setState] = useState<PlaybackState>('idle');
   const [audioError, setAudioError] = useState<string | null>(null);
 
-  const playerRef = useRef<AudioPlayer | null>(null);
+  const player = useAudioPlayer(warmerSource);
 
-  const cleanupPlayer = useCallback(() => {
-    if (playerRef.current) {
-      playerRef.current.pause();
-      playerRef.current.remove();
-      playerRef.current = null;
+  // Gate flag: true between player.replace() and the first isLoaded event.
+  const readyForPlayRef = useRef(false);
+
+  const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimers = useCallback(() => {
+    if (loadingTimerRef.current) {
+      clearTimeout(loadingTimerRef.current);
+      loadingTimerRef.current = null;
+    }
+    if (errorTimerRef.current) {
+      clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = null;
+    }
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
     }
   }, []);
 
-  /**
-   * Load audio from an R2 path and play it, managing loading/error state.
-   * Safe to call concurrently — previous sound is cleaned up first.
-   */
-  const loadAndPlay = useCallback(
-    async (r2Path: string) => {
-      if (!r2Path || r2Path.trim() === '') {
-        console.warn('[Audio] play called with empty r2Path');
-        setAudioError('No audio available for this word');
-        setIsLoading(false);
+  // Single listener — state machine for the native player lifecycle.
+  useEffect(() => {
+    const subscription = player.addListener('playbackStatusUpdate', (status) => {
+      if (status.isLoaded && readyForPlayRef.current) {
+        // Source is ready: open the gate, clear pending timers, start playing.
+        readyForPlayRef.current = false;
+        clearTimers();
+        player.play();
         return;
       }
-      console.log('[Audio] loadAndPlay start, r2Path:', r2Path);
-      setIsLoading(true);
+      if (status.playing) {
+        clearTimers();
+        setState('playing');
+      } else if (status.didJustFinish) {
+        clearTimers();
+        setState('idle');
+      }
+    });
+
+    return () => {
+      subscription.remove();
+      clearTimers();
+    };
+  }, [player, clearTimers]);
+
+  const play = useCallback(
+    async (r2PathOrUrl: string) => {
+      if (!r2PathOrUrl || r2PathOrUrl.trim() === '') {
+        setAudioError('No audio available for this word');
+        return;
+      }
+
+      clearTimers();
+      readyForPlayRef.current = false;
       setAudioError(null);
+
+      // Show loading indicator only after 150ms grace — avoids flash for fast cached plays.
+      loadingTimerRef.current = setTimeout(() => {
+        loadingTimerRef.current = null;
+        setState('loading');
+      }, LOADING_GRACE_MS);
+
       try {
-        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-        console.log('[Audio] mode switched to playback');
-        cleanupPlayer();
-        // Cache-first: check local cache, then download with auth before handing to native player
-        const cachedUri = await getCachedAudioUri(r2Path);
-        console.log('[Audio] cache', cachedUri ? 'hit' : 'miss', cachedUri ?? '(none)');
-        let localUri: string | null;
-        if (cachedUri) {
-          localUri = cachedUri;
+        let uri: string;
+
+        if (r2PathOrUrl.startsWith('http://') || r2PathOrUrl.startsWith('https://')) {
+          uri = r2PathOrUrl;
         } else {
-          console.log('[Audio] downloading from proxy…');
-          localUri = await downloadAndCacheAudio(r2Path);
-          console.log('[Audio] download complete, localUri:', localUri);
+          const cachedUri = await getCachedAudioUri(r2PathOrUrl);
+          uri = cachedUri ?? (await downloadAndCacheAudio(r2PathOrUrl));
         }
-        if (!localUri) throw new Error(`Failed to load audio for path: ${r2Path}`);
-        console.log('[Audio] creating player');
-        const player = createAudioPlayer(localUri);
-        playerRef.current = player;
-        player.play();
-        console.log('[Audio] play() called');
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Audio playback failed';
-        setAudioError(message);
-        console.error('[Audio] Playback failed:', err);
-        try {
-          if (err != null && typeof err === 'object') {
-            const e = err as Record<string, unknown>;
-            console.log(
-              '[Audio] error details — name:',
-              e['name'],
-              'code:',
-              e['code'],
-              'status:',
-              e['status'],
-            );
+
+        // Gate MUST open before replace() — preloaded sources emit isLoaded synchronously.
+        readyForPlayRef.current = true;
+        player.replace({ uri });
+
+        // 250ms fallback: call play() directly in case the listener never fires.
+        fallbackTimerRef.current = setTimeout(() => {
+          fallbackTimerRef.current = null;
+          if (readyForPlayRef.current) {
+            readyForPlayRef.current = false;
+            player.play();
           }
-        } catch {
-          // defensive: ignore secondary errors while logging error properties
-        }
-      } finally {
-        setIsLoading(false);
+        }, PLAY_FALLBACK_MS);
+
+        // 2000ms error ceiling: surface an error if the native player stays silent.
+        errorTimerRef.current = setTimeout(() => {
+          errorTimerRef.current = null;
+          readyForPlayRef.current = false;
+          clearTimers();
+          setState('error');
+          setAudioError('Audio playback timed out');
+        }, ERROR_TIMEOUT_MS);
+      } catch (err) {
+        clearTimers();
+        readyForPlayRef.current = false;
+        setState('error');
+        setAudioError(err instanceof Error ? err.message : 'Audio playback failed');
       }
     },
-    [cleanupPlayer],
-  );
-
-  // Backward-compatible play — delegates to loadAndPlay for unified loading state.
-  const play = useCallback(
-    async (r2Path: string) => {
-      await loadAndPlay(r2Path);
-    },
-    [loadAndPlay],
+    [player, clearTimers],
   );
 
   const stop = useCallback(() => {
-    cleanupPlayer();
-  }, [cleanupPlayer]);
+    clearTimers();
+    readyForPlayRef.current = false;
+    player.pause();
+    setState('idle');
+  }, [player, clearTimers]);
 
   /**
-   * Set the current audio path. When `autoPlay` is enabled, triggers `loadAndPlay`
-   * immediately; otherwise stores the path for manual playback via `play`.
+   * Set the current audio path. When `autoPlay` is enabled, triggers `play`
+   * immediately; otherwise the path is ignored (caller invokes `play` manually).
    */
   const setAudioPath = useCallback(
     (r2Path: string) => {
       if (autoPlay) {
-        loadAndPlay(r2Path);
+        play(r2Path);
       }
     },
-    [autoPlay, loadAndPlay],
+    [autoPlay, play],
   );
 
-  // Cleanup on unmount to prevent memory leaks.
-  useEffect(() => {
-    return () => {
-      cleanupPlayer();
-    };
-  }, [cleanupPlayer]);
-
-  return { play, stop, loadAndPlay, setAudioPath, isLoading, audioError };
+  return {
+    play,
+    stop,
+    setAudioPath,
+    isLoading: state === 'loading',
+    audioError,
+    state,
+  };
 }

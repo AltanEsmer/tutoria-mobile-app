@@ -1,3 +1,4 @@
+import { setAudioModeAsync } from 'expo-audio';
 import { Slot } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -15,12 +16,25 @@ import { useProgressStore } from '@/stores/useProgressStore';
 function RootLayoutInner() {
   useNetworkState();
 
+  // Boot-time audio session: play through speaker even when ringer is muted (iOS).
+  useEffect(() => {
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: 'duckOthers',
+      shouldPlayInBackground: false,
+    }).catch(() => {});
+  }, []);
+
   // Drain offline queue when connectivity is restored
   const isOnline = useNetworkStore((s) => s.isOnline);
   const prevOnlineRef = useRef(isOnline);
   useEffect(() => {
     if (isOnline && !prevOnlineRef.current) {
-      useProgressStore.getState().drainQueue();
+      useProgressStore
+        .getState()
+        .drainQueue()
+        .then(() => useProgressStore.getState().invalidate())
+        .catch(() => {});
     }
     prevOnlineRef.current = isOnline;
   }, [isOnline]);

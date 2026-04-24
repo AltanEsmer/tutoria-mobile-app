@@ -9,6 +9,8 @@ interface ProgressStore {
   activities: ActivityProgress[];
   streakDays: number;
   isLoading: boolean;
+  /** Timestamp of the last invalidate() call; used to trigger re-fetch when the tab is already focused. */
+  lastInvalidatedAt: number;
   offlineQueue: OfflineQueueItem[];
   isSyncing: boolean;
   setActivities: (activities: ActivityProgress[]) => void;
@@ -30,13 +32,15 @@ export const useProgressStore = create<ProgressStore>()(
       activities: [],
       streakDays: 0,
       isLoading: false,
+      lastInvalidatedAt: 0,
       offlineQueue: [],
       isSyncing: false,
 
       setActivities: (activities) => set({ activities }),
       setStreakDays: (streakDays) => set({ streakDays }),
       setLoading: (isLoading) => set({ isLoading }),
-      invalidate: () => set({ activities: [], streakDays: 0, isLoading: false }),
+      invalidate: () =>
+        set({ activities: [], streakDays: 0, isLoading: false, lastInvalidatedAt: Date.now() }),
 
       addToQueue: (item) => {
         const id = Date.now().toString(36) + Math.random().toString(36).slice(2);

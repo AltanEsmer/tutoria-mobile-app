@@ -114,9 +114,11 @@ export default function LessonScreen() {
       store.setCooldown(moduleId);
       // Best-effort backend notification — don't block navigation
       if (activeProfile) {
-        completeSession(moduleId, activeProfile.id).catch(() => {
-          // Queue for offline sync if needed — session completion is best-effort
-        });
+        completeSession(moduleId, activeProfile.id)
+          .then(() => useProgressStore.getState().invalidate())
+          .catch(() => {
+            // Queue for offline sync if needed — session completion is best-effort
+          });
       }
       router.replace(`/lesson/results?moduleId=${moduleId}`);
     }
@@ -204,8 +206,18 @@ export default function LessonScreen() {
     const result = await pronunciation.stopAndCheck(
       freshWord.display_text,
       freshWord.target_ipa ?? '',
+      // C5 — pass validation hints so server uses Gemini Two-Sided judge instead of
+      // Azure-only force-align (which scores poorly / returns 0% without confused[]).
+      freshWord.validation as { confused: string[]; feedback: Record<string, string> } | undefined,
     );
     if (!result) return;
+
+    // C5 — errorType branch: infrastructure/service failures must not count as wrong attempts.
+    // The hook sets pronunciation.error and returns null for errorType verdicts, so this
+    // branch is a defense-in-depth safety net should that behavior ever change.
+    if (result.errorType) {
+      return;
+    }
 
     const freshWordId = freshWord.id;
     const passed = result.overallIsCorrect || result.similarity >= PASSING_THRESHOLD;
