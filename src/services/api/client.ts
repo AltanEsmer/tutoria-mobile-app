@@ -4,6 +4,14 @@ import { API_BASE_URL } from '../../utils/constants';
 declare module 'axios' {
   export interface InternalAxiosRequestConfig {
     _isRetry?: boolean;
+    /**
+     * When true, the response interceptor will not log a `[API] ${status} …`
+     * line nor dump the request/response body for failures on this request.
+     * Use for endpoints with known backend issues that are tracked elsewhere
+     * (e.g. saveProgress while the backend handler is being fixed) so Metro
+     * isn't spammed on every word completion.
+     */
+    _silenceErrorLogging?: boolean;
   }
 }
 
@@ -65,7 +73,30 @@ apiClient.interceptors.response.use(
 
     if (error.response) {
       const { status, data } = error.response;
-      console.error(`[API] ${status}: ${data?.error || 'Unknown error'}`);
+      const cfg = error.config ?? {};
+      if (cfg._silenceErrorLogging) {
+        return Promise.reject(error);
+      }
+      const method = (cfg.method || 'GET').toUpperCase();
+      const url = `${cfg.baseURL ?? ''}${cfg.url ?? ''}`;
+      const message = data?.error || data?.message || 'Unknown error';
+      console.error(`[API] ${status} ${method} ${url}: ${message}`);
+      // For 4xx/5xx, dump the full response body and request body so we can see
+      // *why* the backend rejected the call. The default `data?.error` extract
+      // hides nested validation messages, stack traces and missing-field hints.
+      if (status >= 400) {
+        try {
+          const bodyPreview = typeof cfg.data === 'string' ? cfg.data : JSON.stringify(cfg.data);
+          console.error('[API] request body:', bodyPreview);
+        } catch {
+          // Ignore stringify errors (e.g. circular request bodies)
+        }
+        try {
+          console.error('[API] response body:', JSON.stringify(data));
+        } catch {
+          console.error('[API] response body (non-serialisable):', data);
+        }
+      }
     } else if (error.request) {
       console.error('[API] Network error — no response received');
     }

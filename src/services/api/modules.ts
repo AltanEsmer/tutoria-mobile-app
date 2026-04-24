@@ -11,6 +11,7 @@ import type {
 } from '../../utils/types';
 import apiClient from './client';
 import { resolveSounds, getAudioProxyUrl } from './audio';
+import { makeIdempotencyKey } from './idempotency';
 
 /**
  * Normalise a raw API word record to the canonical snake_case WordData shape.
@@ -225,6 +226,7 @@ export async function completeWord(
   const { data } = await apiClient.post<WordCompletionResponse>(
     `/v1/modules/${moduleId}/word`,
     req,
+    { headers: { 'X-Idempotency-Key': makeIdempotencyKey() } },
   );
   return data;
 }

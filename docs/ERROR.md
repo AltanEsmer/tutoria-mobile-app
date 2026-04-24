@@ -547,3 +547,38 @@ Also added `useAudioRecorderState` for metering, `peakDetected` silence gate (sk
 **Fix:** Added a `hydrateFromSession(session: SessionData)` action to `useLessonStore` that atomically sets `currentWordIndex = session.position ?? 0`, `completedWords = session.completedWords ?? []`, `failedWords = session.failedWords ?? []`, `sessionScore = completedWords.length` (reflecting prior progress on the results screen), and guards `sessionComplete = true` if `position >= totalWords`. In `loadModule()`, `store.hydrateFromSession(resolvedSession)` is called immediately after `store.setSession(resolvedSession)` and before `store.setCurrentWord(startWord)`, so all subsequent store reads (progress bar, `advanceWord`) operate from the correct resume position. (`src/stores/useLessonStore.ts` + `src/app/(public)/lesson/[moduleId].tsx`)
 
 **Generalized rule:** Whenever a store holds derived tracking state (indexes, counters, arrays) that mirrors a backend model, there must be an explicit hydration action that writes ALL fields from the backend response in a single atomic `set()` call. Calling only `setSession(data)` while leaving tracking fields at their defaults silently diverges client state from server state — especially after navigation away and back.
+
+---
+
+## saveProgress 500 — missing X-Idempotency-Key header (and thin diagnostics)
+
+**Symptom:** `ERROR [API] 500: Failed to save progress` continued to fire on every `POST /v1/progress/:profileId/:activityId` call even after the empty-`display_text` guard was added — including for words with valid display text (e.g. `"a"`, `"cat"`) and on the Skip button. The Progress tab stayed empty.
+
+**Cause:** Two compounding issues. (1) `docs/message.txt` (the curriculum-team API reference) explicitly lists `X-Idempotency-Key` as a required header on both `POST /v1/modules/{moduleId}/word` and `POST /v1/progress/{profileId}/{activityId}` for offline-replay safety; the mobile client was never sending it, so the backend rejected every save attempt. (2) The shared response interceptor only logged `data?.error`, hiding nested validation messages (`message`, request URL, request body, full response payload) — so every 500 looked identical and the real cause was invisible from Metro alone.
+
+**Fix:**
+1. **New helper** `src/services/api/idempotency.ts` exposing `makeIdempotencyKey()` — a sufficient-uniqueness key (`Date.now()` + random base36) generated per-request.
+2. **`saveProgress`** (`src/services/api/progress.ts`) and **`completeWord`** (`src/services/api/modules.ts`) now attach `{ headers: { 'X-Idempotency-Key': makeIdempotencyKey() } }` on every POST.
+3. **Response interceptor** (`src/services/api/client.ts`) now logs, for every ≥400 response: HTTP method + full URL, the request body, and the **full** stringified response body. The previous one-line log lives on for 2xx-shaped errors; nested errors are now visible in Metro.
+
+**Generalized rule:** When a backend documents a required header for replay-safety (`X-Idempotency-Key`, `X-Request-Id`, etc.), the client must send it on **every** `POST`/`PUT`/`PATCH` of the affected endpoint, not just the offline-queue replay path. Generate the key per-request and never reuse one across two distinct user actions. Independently: response interceptors must log the full response body on errors — surfacing only `data?.error` makes every server-side validation failure look identical and prevents diagnosis from the client console.
+
+---
+
+## saveProgress 500 — backend handler degraded (client-side graceful degradation)
+
+**Symptom:** `POST /v1/progress/:profileId/:activityId` returns `500 {"error":"Failed to save progress"}` for every well-formed request — verified via the new full-body interceptor logging. Example reproducer: `POST /v1/progress/49b9ca02-…/cat` body `{"isCorrect":false,"displayText":"cat"}` with `X-Idempotency-Key` header → still 500. Every other endpoint (auth, modules, completeWord, syllabus, pronunciation) works for the same profile, so this is isolated to the progress handler.
+
+**Cause:** Backend handler is failing internally. The API returns only the generic top-level error string; no validation hint is exposed. The two API references in the repo also disagree on the contract (`docs/tutoria-api.md` says body `{ isCorrect, displayText }` with find-or-create-by-displayText; `docs/message.txt` says body `{ isCorrect }` and treats `:activityId` as an existing UUID), suggesting the deployed handler is mid-migration. **Not a client-fixable bug.**
+
+**Client-side mitigation (until backend is restored):**
+1. **`apiClient` config flag `_silenceErrorLogging`** (`src/services/api/client.ts`) — when set on a request, the response interceptor still rejects the promise but skips its `[API] status method url`, request-body, and response-body error logs. Used to suppress per-word noise from a known-broken endpoint.
+2. **`saveProgress` self-contains the failure** (`src/services/api/progress.ts`) — wraps the POST in try/catch, sets `_silenceErrorLogging: true` on the request, logs **once per app session** with a clear message ("backend handler degraded; Progress tab will stay empty until backend is fixed"), and **does NOT rethrow**. Callers no longer see `saveProgress` as an error path.
+3. **Lesson screen** (`src/app/(public)/lesson/[moduleId].tsx`) — removes the `saveProgress` enqueue from the offline-queue catch branch. `completeWord` is still enqueued. Re-add the `saveProgress` enqueue once the backend is fixed (the offline queue would otherwise fill with permanent failures).
+
+**To restore once backend is fixed:**
+- Remove the try/catch and `_saveProgressWarnedThisSession` flag in `saveProgress`.
+- Remove the `_silenceErrorLogging: true` from the request config.
+- Re-add the `saveProgress` enqueue in the lesson screen catch branch.
+
+**Generalized rule:** When a client-side endpoint is provably correct (verified via full request/response logging) but the backend is degraded, do not let the noise spam Metro and do not enqueue retries on a known-broken endpoint. Add a per-request silencing flag to the interceptor, swallow the error in the service function, log once, and document the regression with a clear "what to revert when fixed" checklist so the mitigation is reversible.
