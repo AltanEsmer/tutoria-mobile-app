@@ -156,12 +156,9 @@ export default function LessonScreen() {
         });
         // Write to the progress table so GET /v1/progress reflects this attempt.
         // Use display_text as the stable activity identifier — curriculum word IDs are
-        // R2-local and may not match D1 activity UUIDs. display_text is consistent and
-        // the backend uses it to find-or-create the activity record.
-        // Guard: skip saveProgress entirely when display_text is empty (some R2 curriculum
+        // R2-local and may not match D1 activity UUIDs.
+        // Guard: skip saveProgress when display_text is empty (some R2 curriculum
         // words carry only audio_files IPA payloads and have no display_text).
-        // Note: saveProgress is currently degraded server-side and never throws — see
-        // src/services/api/progress.ts. It will silently no-op until the backend is fixed.
         if (activityKey) {
           await saveProgress(activeProfile.id, activityKey, {
             isCorrect,
@@ -171,10 +168,7 @@ export default function LessonScreen() {
         // Invalidate the progress store so the next Progress-tab focus fetches fresh data.
         useProgressStore.getState().invalidate();
       } catch {
-        // Queue failed completeWord for offline sync. saveProgress is intentionally
-        // NOT enqueued — its endpoint is known-broken and replaying it would just
-        // fill the queue with permanent failures. Re-add the saveProgress enqueue
-        // once the backend handler is restored.
+        // Queue failed requests for offline sync and replay on reconnect.
         useProgressStore.getState().addToQueue({
           type: 'completeWord',
           endpoint: `/v1/modules/${moduleId}/word`,
@@ -184,6 +178,16 @@ export default function LessonScreen() {
             isCorrect,
           },
         });
+        if (activityKey) {
+          useProgressStore.getState().addToQueue({
+            type: 'saveProgress',
+            endpoint: `/v1/progress/${activeProfile.id}/${encodeURIComponent(activityKey)}`,
+            payload: { isCorrect, displayText: activityKey },
+            headers: {
+              'X-Idempotency-Key': `offline-${activeProfile.id}-${activityKey}-${Date.now()}`,
+            },
+          });
+        }
       } finally {
         setIsSubmitting(false);
       }

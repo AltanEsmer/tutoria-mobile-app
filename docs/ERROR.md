@@ -565,20 +565,21 @@ Also added `useAudioRecorderState` for metering, `peakDetected` silence gate (sk
 
 ---
 
-## saveProgress 500 — backend handler degraded (client-side graceful degradation)
+## saveProgress 500 — backend handler degraded (client-side graceful degradation) ✅ RESOLVED
 
 **Symptom:** `POST /v1/progress/:profileId/:activityId` returns `500 {"error":"Failed to save progress"}` for every well-formed request — verified via the new full-body interceptor logging. Example reproducer: `POST /v1/progress/49b9ca02-…/cat` body `{"isCorrect":false,"displayText":"cat"}` with `X-Idempotency-Key` header → still 500. Every other endpoint (auth, modules, completeWord, syllabus, pronunciation) works for the same profile, so this is isolated to the progress handler.
 
-**Cause:** Backend handler is failing internally. The API returns only the generic top-level error string; no validation hint is exposed. The two API references in the repo also disagree on the contract (`docs/tutoria-api.md` says body `{ isCorrect, displayText }` with find-or-create-by-displayText; `docs/message.txt` says body `{ isCorrect }` and treats `:activityId` as an existing UUID), suggesting the deployed handler is mid-migration. **Not a client-fixable bug.**
+**Cause:** Two backend SQLite bugs — the activities INSERT and the progress INSERT/UPDATE both targeted columns that don't exist in the schema. SQLite threw, the catch swallowed it, returning the generic 500. **Not a client-fixable bug.** Backend fixed and shipped to api.tutoria.ac on 2026-04-25.
 
-**Client-side mitigation (until backend is restored):**
-1. **`apiClient` config flag `_silenceErrorLogging`** (`src/services/api/client.ts`) — when set on a request, the response interceptor still rejects the promise but skips its `[API] status method url`, request-body, and response-body error logs. Used to suppress per-word noise from a known-broken endpoint.
-2. **`saveProgress` self-contains the failure** (`src/services/api/progress.ts`) — wraps the POST in try/catch, sets `_silenceErrorLogging: true` on the request, logs **once per app session** with a clear message ("backend handler degraded; Progress tab will stay empty until backend is fixed"), and **does NOT rethrow**. Callers no longer see `saveProgress` as an error path.
-3. **Lesson screen** (`src/app/(public)/lesson/[moduleId].tsx`) — removes the `saveProgress` enqueue from the offline-queue catch branch. `completeWord` is still enqueued. Re-add the `saveProgress` enqueue once the backend is fixed (the offline queue would otherwise fill with permanent failures).
+**Client-side mitigation that was applied (now reverted):**
+1. **`apiClient` config flag `_silenceErrorLogging`** — suppressed per-request noise for the broken endpoint.
+2. **`saveProgress` self-contained the failure** — try/catch swallowing the error with a once-per-session warn.
+3. **Lesson screen** — removed the `saveProgress` enqueue from the offline-queue catch branch to avoid replaying a permanently-broken endpoint.
 
-**To restore once backend is fixed:**
-- Remove the try/catch and `_saveProgressWarnedThisSession` flag in `saveProgress`.
-- Remove the `_silenceErrorLogging: true` from the request config.
-- Re-add the `saveProgress` enqueue in the lesson screen catch branch.
+**Revert applied (2026-04-25):**
+- Removed try/catch and `_saveProgressWarnedThisSession` flag from `saveProgress`.
+- Removed `_silenceErrorLogging: true` from the request.
+- Re-added `saveProgress` enqueue in the lesson screen catch branch (with `X-Idempotency-Key` stored in `OfflineQueueItem.headers`).
+- Added `headers?: Record<string, string>` to `OfflineQueueItem` and `drainQueue` now passes headers on replay.
 
 **Generalized rule:** When a client-side endpoint is provably correct (verified via full request/response logging) but the backend is degraded, do not let the noise spam Metro and do not enqueue retries on a known-broken endpoint. Add a per-request silencing flag to the interceptor, swallow the error in the service function, log once, and document the regression with a clear "what to revert when fixed" checklist so the mitigation is reversible.

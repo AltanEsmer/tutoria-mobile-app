@@ -206,6 +206,7 @@ export interface OfflineQueueItem {
   type: 'completeWord' | 'completeSession' | 'saveProgress';
   endpoint: string;
   payload: Record<string, unknown>;
+  headers?: Record<string, string>;
   createdAt: number;
   retryCount: number;
 }

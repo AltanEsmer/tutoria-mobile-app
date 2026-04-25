@@ -65,7 +65,9 @@ export const useProgressStore = create<ProgressStore>()(
           const queue = [...get().offlineQueue];
           for (const item of queue) {
             try {
-              await apiClient.post(item.endpoint, item.payload);
+              await apiClient.post(item.endpoint, item.payload, {
+                headers: item.headers,
+              });
               get().removeFromQueue(item.id);
             } catch (error: unknown) {
               const status =

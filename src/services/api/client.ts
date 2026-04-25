@@ -10,9 +10,7 @@ declare module 'axios' {
     /**
      * When true, the response interceptor will not log a `[API] ${status} …`
      * line nor dump the request/response body for failures on this request.
-     * Use for endpoints with known backend issues that are tracked elsewhere
-     * (e.g. saveProgress while the backend handler is being fixed) so Metro
-     * isn't spammed on every word completion.
+     * Use sparingly for endpoints where error logging is handled at a higher level.
      */
     _silenceErrorLogging?: boolean;
   }
