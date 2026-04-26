@@ -583,3 +583,9 @@ Also added `useAudioRecorderState` for metering, `peakDetected` silence gate (sk
 - Added `headers?: Record<string, string>` to `OfflineQueueItem` and `drainQueue` now passes headers on replay.
 
 **Generalized rule:** When a client-side endpoint is provably correct (verified via full request/response logging) but the backend is degraded, do not let the noise spam Metro and do not enqueue retries on a known-broken endpoint. Add a per-request silencing flag to the interceptor, swallow the error in the service function, log once, and document the regression with a clear "what to revert when fixed" checklist so the mitigation is reversible.
+
+### Lesson resume restarts from word 1 instead of continuing where left off
+**Context:** Lesson screen (`src/app/(public)/lesson/[moduleId].tsx`) on re-entry after mid-lesson exit  
+**Error:** After exiting a lesson with N words completed and re-entering, all N words must be repeated from the start  
+**Cause:** `loadModule` used `resolvedSession.position` (which the backend returns as 0 even for resumed sessions) to pick `startWord`, and `hydrateFromSession` similarly trusted `session.position` as `currentWordIndex` — ignoring `completedWords` as the source of truth  
+**Fix:** `hydrateFromSession` now computes `effectivePosition` = `wordData.findIndex(w => !completedSet.has(w.id))`, clamped to `Math.max(effectivePosition, session.position)`. `loadModule` reads `currentWordIndex` from `useLessonStore.getState()` after hydration instead of using `resolvedSession.position` directly.

@@ -76,15 +76,31 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
 
   // ─── New actions ──────────────────────────────────────────────
   hydrateFromSession: (session) => {
-    const position = session.position ?? 0;
     const completedWords = session.completedWords ?? [];
+    const completedSet = new Set(completedWords);
     const totalWords = session.wordData?.length ?? session.totalWords ?? 0;
+
+    // Find the first word in wordData that has not been completed yet.
+    // This handles: (a) correct position returned by backend, (b) position=0 with completedWords
+    // populated (backend resume bug), (c) wordData containing only remaining words.
+    let effectivePosition = session.wordData
+      ? session.wordData.findIndex((w) => !completedSet.has(w.id))
+      : -1;
+
+    if (effectivePosition === -1) {
+      // All words completed (or no wordData) — mark session complete
+      effectivePosition = totalWords;
+    }
+
+    // Never go backward past what the backend explicitly reported
+    effectivePosition = Math.max(effectivePosition, session.position ?? 0);
+
     set({
-      currentWordIndex: position,
+      currentWordIndex: effectivePosition,
       completedWords,
       failedWords: session.failedWords ?? [],
       sessionScore: completedWords.length,
-      sessionComplete: totalWords > 0 && position >= totalWords,
+      sessionComplete: totalWords > 0 && effectivePosition >= totalWords,
     });
   },
 

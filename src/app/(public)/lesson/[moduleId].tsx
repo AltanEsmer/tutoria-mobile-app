@@ -61,8 +61,10 @@ export default function LessonScreen() {
           resolvedSession.totalWords,
         );
       }
-      const startWord =
-        resolvedSession.wordData[resolvedSession.position] ?? resolvedSession.wordData[0] ?? null;
+      // Use the effective position computed by hydrateFromSession (not raw session.position which
+      // may be 0 even for resumed sessions where completedWords is non-empty).
+      const { currentWordIndex: effectiveIndex } = useLessonStore.getState();
+      const startWord = resolvedSession.wordData[effectiveIndex] ?? null;
       store.setCurrentWord(startWord);
       if (startWord?.audio_path) {
         audio.setAudioPath(startWord.audio_path);
