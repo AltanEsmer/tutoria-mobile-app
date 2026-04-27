@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-
 import { useHaptics } from '@/hooks/useHaptics';
 import { NfcRing } from './NfcRing';
 

@@ -1,6 +1,6 @@
-import { getCacheEntry, getCache, setCache } from '../cache';
 import { CURRICULUM_CACHE_TTL } from '../../utils/constants';
 import type { Stage } from '../../utils/types';
+import { getCacheEntry, getCache, setCache } from '../cache';
 import apiClient from './client';
 
 const STAGES_CACHE_KEY = 'cache:syllabus:stages';

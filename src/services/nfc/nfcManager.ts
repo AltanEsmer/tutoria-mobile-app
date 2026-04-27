@@ -1,6 +1,6 @@
 import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
-import { parseNdefPayload } from './tagParser';
 import type { NfcTagPayload } from '../../utils/types';
+import { parseNdefPayload } from './tagParser';
 
 const NFC_MOCK = process.env.EXPO_PUBLIC_ENABLE_NFC_MOCK === 'true';
 

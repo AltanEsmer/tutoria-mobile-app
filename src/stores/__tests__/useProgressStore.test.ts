@@ -1,3 +1,5 @@
+import apiClient from '@/services/api/client';
+import type { ActivityProgress } from '@/utils/types';
 import { useProgressStore } from '../useProgressStore';
 
 jest.mock('@/services/api/client', () => ({
@@ -7,7 +9,6 @@ jest.mock('@/services/api/client', () => ({
   },
 }));
 
-import apiClient from '@/services/api/client';
 const mockPost = apiClient.post as jest.Mock;
 
 const makeQueueItem = (overrides = {}) => ({
@@ -121,7 +122,7 @@ describe('useProgressStore — offline queue', () => {
 
   describe('invalidate', () => {
     it('clears activities and streak and updates lastInvalidatedAt', () => {
-      useProgressStore.setState({ activities: [{ id: '1' } as any], streakDays: 5 });
+      useProgressStore.setState({ activities: [{ id: '1' } as ActivityProgress], streakDays: 5 });
       const before = Date.now();
       useProgressStore.getState().invalidate();
       const after = Date.now();

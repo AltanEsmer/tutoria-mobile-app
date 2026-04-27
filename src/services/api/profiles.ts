@@ -1,5 +1,5 @@
-import apiClient from './client';
 import type { Profile, CreateProfileRequest } from '../../utils/types';
+import apiClient from './client';
 
 export async function listProfiles(): Promise<Profile[]> {
   const { data } = await apiClient.get<{ profiles: Profile[] }>('/v1/profiles/list');

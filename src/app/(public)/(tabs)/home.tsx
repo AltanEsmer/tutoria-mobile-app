@@ -1,17 +1,17 @@
+import * as Haptics from 'expo-haptics';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import { NfcPrompt } from '@/components/nfc/NfcPrompt';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { MissionCard } from '@/components/ui/MissionCard';
+import { useNfc } from '@/hooks/useNfc';
 import { getMissions } from '@/services/api';
 import { cleanupNfc } from '@/services/nfc';
-import { useProfileStore } from '@/stores/useProfileStore';
 import { useLessonStore } from '@/stores/useLessonStore';
-import { useNfc } from '@/hooks/useNfc';
-import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { MissionCard } from '@/components/ui/MissionCard';
-import { NfcPrompt } from '@/components/nfc/NfcPrompt';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useProfileStore } from '@/stores/useProfileStore';
 import type { Mission } from '@/utils/types';
 
 export default function HomeScreen() {

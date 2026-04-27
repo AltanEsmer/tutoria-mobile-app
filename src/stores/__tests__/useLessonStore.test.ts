@@ -1,5 +1,5 @@
-import { useLessonStore } from '../useLessonStore';
 import type { SessionData } from '../../utils/types';
+import { useLessonStore } from '../useLessonStore';
 
 const mockSession: SessionData = {
   words: ['w1', 'w2', 'w3'],

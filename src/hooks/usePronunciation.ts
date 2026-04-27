@@ -1,5 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import * as FileSystem from 'expo-file-system/legacy';
 import {
   useAudioRecorder,
   useAudioRecorderState,
@@ -8,9 +6,11 @@ import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
+import * as FileSystem from 'expo-file-system/legacy';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { checkPronunciation } from '../services/api/pronunciation';
-import { MAX_PRONUNCIATION_FAILURES } from '../utils/constants';
 import { useProfileStore } from '../stores/useProfileStore';
+import { MAX_PRONUNCIATION_FAILURES } from '../utils/constants';
 import type { PronunciationCheckRequest, PronunciationCheckResponse } from '../utils/types';
 
 // Local alias — Stream A adds profileId to PronunciationCheckRequest in types.ts.

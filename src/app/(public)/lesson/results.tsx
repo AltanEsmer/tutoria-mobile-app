@@ -1,7 +1,6 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-
 import { useHaptics } from '@/hooks/useHaptics';
 import { useLessonStore } from '@/stores/useLessonStore';
 import type { WordData } from '@/utils/types';

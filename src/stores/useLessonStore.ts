@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { PronunciationCheckResponse, SessionData, WordData } from '../utils/types';
 import { COOLDOWN_HOURS } from '../utils/constants';
+import type { PronunciationCheckResponse, SessionData, WordData } from '../utils/types';
 
 // Defined inline — not yet in constants.ts
 const MAX_WORD_ATTEMPTS = 3;

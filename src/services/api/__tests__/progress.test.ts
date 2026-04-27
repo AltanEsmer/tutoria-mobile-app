@@ -1,3 +1,4 @@
+import apiClient from '../client';
 import { getProgress, saveProgress } from '../progress';
 
 jest.mock('../client', () => ({
@@ -11,8 +12,6 @@ jest.mock('../client', () => ({
 jest.mock('../idempotency', () => ({
   makeIdempotencyKey: jest.fn(() => 'mock-idempotency-key'),
 }));
-
-import apiClient from '../client';
 
 const mockGet = apiClient.get as jest.Mock;
 const mockPost = apiClient.post as jest.Mock;

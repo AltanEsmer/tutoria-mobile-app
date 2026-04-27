@@ -1,5 +1,5 @@
-import apiClient from './client';
 import type { ProgressResponse, SaveProgressRequest } from '../../utils/types';
+import apiClient from './client';
 import { makeIdempotencyKey } from './idempotency';
 
 export async function getProgress(profileId: string): Promise<ProgressResponse> {

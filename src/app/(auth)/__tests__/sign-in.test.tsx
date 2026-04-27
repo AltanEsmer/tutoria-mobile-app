@@ -1,9 +1,9 @@
-import React from 'react';
+import { useSignIn } from '@clerk/clerk-expo';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import React from 'react';
 import SignInScreen from '../sign-in';
 
 // @clerk/clerk-expo is mocked via __mocks__/@clerk/clerk-expo.js
-import { useSignIn } from '@clerk/clerk-expo';
 
 const mockUseSignIn = useSignIn as jest.Mock;
 

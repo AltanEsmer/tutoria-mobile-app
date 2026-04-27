@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-
 import type { NetworkState } from '../utils/types';
 
 interface NetworkStore extends NetworkState {

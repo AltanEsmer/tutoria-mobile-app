@@ -1,8 +1,9 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-
+import { PronunciationFeedback } from '@/components/lesson/PronunciationFeedback';
+import { WordDisplay } from '@/components/lesson/WordDisplay';
 import { useAudio } from '@/hooks/useAudio';
 import { useHaptics } from '@/hooks/useHaptics';
 import { usePronunciation } from '@/hooks/usePronunciation';
@@ -17,10 +18,8 @@ import { prefetchAudioFiles } from '@/services/cache';
 import { useLessonStore } from '@/stores/useLessonStore';
 import { useProfileStore } from '@/stores/useProfileStore';
 import { useProgressStore } from '@/stores/useProgressStore';
-import { PronunciationFeedback } from '@/components/lesson/PronunciationFeedback';
-import { WordDisplay } from '@/components/lesson/WordDisplay';
-import type { PronunciationCheckResponse } from '@/utils/types';
 import { MAX_PREFETCH_WORDS } from '@/utils/constants';
+import type { PronunciationCheckResponse } from '@/utils/types';
 
 const MAX_WORD_ATTEMPTS = 3;
 const PASSING_THRESHOLD = 80;

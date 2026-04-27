@@ -10,7 +10,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-
 import { createProfile } from '@/services/api';
 import { useProfileStore } from '@/stores/useProfileStore';
 

@@ -1,14 +1,14 @@
+import { useFocusEffect, useIsFocused } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useIsFocused } from 'expo-router';
-import { getProgress } from '@/services/api';
-import { useProgressStore } from '@/stores/useProgressStore';
-import { useProfileStore } from '@/stores/useProfileStore';
-import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { ActivityList } from '@/components/progress/ActivityList';
 import { StreakBadge } from '@/components/progress/StreakBadge';
 import { WeeklyChart } from '@/components/progress/WeeklyChart';
-import { ActivityList } from '@/components/progress/ActivityList';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { getProgress } from '@/services/api';
+import { useProfileStore } from '@/stores/useProfileStore';
+import { useProgressStore } from '@/stores/useProgressStore';
 
 export default function ProgressScreen() {
   return (

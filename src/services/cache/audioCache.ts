@@ -1,5 +1,4 @@
 import * as FileSystem from 'expo-file-system/legacy';
-
 import { getAudioProxyUrl } from '../api/audio';
 import { getAuthHeader } from '../api/client';
 

@@ -1,6 +1,6 @@
-import apiClient from './client';
-import type { PronunciationCheckRequest, PronunciationCheckResponse } from '../../utils/types';
 import { PRONUNCIATION_TIMEOUT_MS } from '../../utils/constants';
+import type { PronunciationCheckRequest, PronunciationCheckResponse } from '../../utils/types';
+import apiClient from './client';
 
 export async function checkPronunciation(
   req: PronunciationCheckRequest,

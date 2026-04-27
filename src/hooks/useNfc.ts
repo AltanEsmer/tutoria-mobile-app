@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
-import { useNfcStore } from '../stores/useNfcStore';
 import { initNfc, isNfcEnabled, readTag, cleanupNfc } from '../services/nfc';
+import { useNfcStore } from '../stores/useNfcStore';
 
 /**
  * Hook for NFC scanning lifecycle.

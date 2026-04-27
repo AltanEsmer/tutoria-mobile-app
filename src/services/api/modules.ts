@@ -1,4 +1,3 @@
-import { getCache, setCache, getCacheEntry, clearCache } from '../cache';
 import { MODULE_CACHE_TTL } from '../../utils/constants';
 import type {
   Mission,
@@ -9,8 +8,9 @@ import type {
   WordCompletionResponse,
   BatchModuleStatusRequest,
 } from '../../utils/types';
-import apiClient from './client';
+import { getCache, setCache, getCacheEntry, clearCache } from '../cache';
 import { resolveSounds, getAudioProxyUrl } from './audio';
+import apiClient from './client';
 import { makeIdempotencyKey } from './idempotency';
 
 /**

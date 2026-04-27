@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
 import type { PronunciationCheckResponse } from '@/utils/types';
 import { ScoreBadge } from './ScoreBadge';
 

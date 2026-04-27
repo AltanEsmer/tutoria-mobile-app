@@ -1,5 +1,5 @@
-import { useNfcStore } from '../useNfcStore';
 import type { NfcTagPayload } from '../../utils/types';
+import { useNfcStore } from '../useNfcStore';
 
 const mockTag: NfcTagPayload = {
   tagId: 'tag-001',

@@ -1,10 +1,10 @@
+import { useFonts, Lexend_400Regular, Lexend_700Bold } from '@expo-google-fonts/lexend';
 import { setAudioModeAsync } from 'expo-audio';
 import { Slot } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
-import { useFonts, Lexend_400Regular, Lexend_700Bold } from '@expo-google-fonts/lexend';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { useNetworkState } from '@/hooks/useNetworkState';

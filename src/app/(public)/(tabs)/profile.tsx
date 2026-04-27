@@ -1,9 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-
-import { listProfiles, selectProfile } from '@/services/api';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { listProfiles, selectProfile } from '@/services/api';
 import { useProfileStore } from '@/stores/useProfileStore';
 import type { Profile } from '@/utils/types';
 

@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import type { CacheEntry } from '../../utils/types';
 
 export async function getCache<T>(key: string): Promise<T | null> {

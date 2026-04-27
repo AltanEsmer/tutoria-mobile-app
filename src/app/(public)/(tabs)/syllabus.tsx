@@ -9,9 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-import { getStages, getStagesCacheInfo } from '@/services/api';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { getStages, getStagesCacheInfo } from '@/services/api';
 import { CURRICULUM_CACHE_TTL } from '@/utils/constants';
 import type { Stage } from '@/utils/types';
 

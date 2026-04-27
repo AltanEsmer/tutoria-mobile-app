@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '../../utils/constants';
-import apiClient from './client';
 import type { SoundsResolveResponse } from '../../utils/types';
+import apiClient from './client';
 
 /**
  * Get the proxied audio URL for an R2 path.

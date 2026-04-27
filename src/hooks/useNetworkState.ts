@@ -1,6 +1,5 @@
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { useEffect } from 'react';
-
 import { useNetworkStore } from '../stores/useNetworkStore';
 
 export function useNetworkState() {

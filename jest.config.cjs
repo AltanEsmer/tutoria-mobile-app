@@ -18,9 +18,12 @@ const config = {
     '!src/**/index.ts',
   ],
   coverageThreshold: {
-    global: {
-      lines: 60,
-    },
+    './src/stores/useAuthStore.ts': { lines: 100 },
+    './src/stores/useNfcStore.ts': { lines: 100 },
+    './src/stores/useLessonStore.ts': { lines: 85 },
+    './src/stores/useProgressStore.ts': { lines: 85 },
+    './src/services/api/progress.ts': { lines: 100 },
+    './src/services/nfc/tagParser.ts': { lines: 100 },
   },
 };
 
