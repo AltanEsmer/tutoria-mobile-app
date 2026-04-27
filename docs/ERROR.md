@@ -589,3 +589,17 @@ Also added `useAudioRecorderState` for metering, `peakDetected` silence gate (sk
 **Error:** After exiting a lesson with N words completed and re-entering, all N words must be repeated from the start  
 **Cause:** `loadModule` used `resolvedSession.position` (which the backend returns as 0 even for resumed sessions) to pick `startWord`, and `hydrateFromSession` similarly trusted `session.position` as `currentWordIndex` — ignoring `completedWords` as the source of truth  
 **Fix:** `hydrateFromSession` now computes `effectivePosition` = `wordData.findIndex(w => !completedSet.has(w.id))`, clamped to `Math.max(effectivePosition, session.position)`. `loadModule` reads `currentWordIndex` from `useLessonStore.getState()` after hydration instead of using `resolvedSession.position` directly.
+
+### Jest mock default export resolves to undefined when `__esModule` flag is missing
+**Context:** Jest unit tests for stores/services that mock Axios `apiClient` (default export)  
+**Error:** `TypeError: Cannot read properties of undefined (reading 'mockResolvedValue')` — the `mockPost` constant is `undefined` at test time  
+**Cause:** When a Jest mock factory returns `{ default: { post: jest.fn() } }` without `__esModule: true`, Babel's `interopRequireDefault` wraps the whole object in another `{ default: ... }` layer. The default import resolves to the original mock object (which has a `.default` sub-key, not `.post`), making `apiClient.post` undefined.  
+**Fix:** Add `__esModule: true` to every Jest mock factory that uses a `default` export: `jest.mock('./module', () => ({ __esModule: true, default: { ... } }))`.  
+**Generalized rule:** Any Jest mock for a module that uses `export default` must include `__esModule: true` in the factory return object, otherwise Babel's interop wrapper double-nests the default, making the imported value one level off.
+
+### `eslint-plugin-react-native` incompatible with ESLint 9 flat config
+**Context:** `eslint.config.js` (ESLint 9 flat config) with `eslint-plugin-react-native@^4`  
+**Error:** `TypeError: context.getScope is not a function` on rules `no-unused-styles`, `split-platform-components`, `no-inline-styles`  
+**Cause:** ESLint 9 removed `context.getScope()` in favour of `sourceCode.getScope(node)`. `eslint-plugin-react-native@4` still uses the old API internally and has not been updated for ESLint 9 flat config.  
+**Fix:** Register the plugin but set all its rules to `'off'` until an ESLint 9-compatible version is released. The plugin can still be listed in `plugins` for future activation without breaking the lint run.  
+**Generalized rule:** When adding an ESLint plugin for a React Native project using ESLint 9 flat config, verify the plugin version supports the new `sourceCode.getScope(node)` API. If not, register it but disable its rules with `'off'` rather than removing it entirely.

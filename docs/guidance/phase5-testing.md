@@ -139,24 +139,49 @@ TEST_PASSWORD=YourTestPassword123!
 
 ---
 
-## CI Integration (Future)
+## CI Integration
 
-To run Maestro in CI (GitHub Actions):
+Phase 5 adds a GitHub Actions CI pipeline at `.github/workflows/ci.yml` that runs on every push/PR to `main` and `develop`.
 
-```yaml
-- name: Install Maestro
-  run: curl -Ls "https://get.maestro.mobile.dev" | bash
+### What the CI runs
 
-- name: Run E2E Tests
-  run: maestro test .maestro/flows/
-  env:
-    TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
-    TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+| Job | Steps |
+|---|---|
+| `lint-typecheck` | `npm ci` → `eslint` → `tsc --noEmit` |
+| `test` | `npm ci` → `jest --coverage --ci --passWithNoTests` → upload coverage artifact |
+
+### Running unit tests locally
+
+```bash
+npm test                  # run all jest tests
+npm run test:watch        # watch mode
+npm run test:coverage     # with coverage report
 ```
 
-This requires a running simulator/emulator in CI (e.g., using `macos-latest` runner with Xcode for iOS, or `ubuntu-latest` with Android AVD for Android).
+### Test files created
+
+| File | What it covers |
+|---|---|
+| `src/services/nfc/__tests__/tagParser.test.ts` | NDEF parsing (valid, invalid, empty, whitespace) |
+| `src/services/api/__tests__/progress.test.ts` | `getProgress` / `saveProgress` with mocked Axios |
+| `src/stores/__tests__/useAuthStore.test.ts` | Initial state, `setAuth`, `clearAuth` |
+| `src/stores/__tests__/useNfcStore.test.ts` | Scan state transitions |
+| `src/stores/__tests__/useLessonStore.test.ts` | `hydrateFromSession`, `recordAttempt`, `advanceWord`, cooldown, reset |
+| `src/stores/__tests__/useProgressStore.test.ts` | Offline queue drain, retry, 409 handling, invalidate |
+| `src/app/(auth)/__tests__/sign-in.test.tsx` | Renders, Clerk integration, error handling |
+
+### Mocks in `__mocks__/`
+
+Root-level `__mocks__/` provides auto-mocks for: `react-native-nfc-manager`, `expo-haptics`, `expo-secure-store`, `expo-audio`, `expo-file-system`, `expo-router`, `@clerk/clerk-expo`, `@react-native-community/netinfo`, `@react-native-async-storage/async-storage`.
+
+### Known limitations
+
+- Hook tests (`useNfc`, `useAudio`, `usePronunciation`) are deferred — they require deep native mocking of recording hardware and NFC that cannot easily run headlessly.
+- `eslint-plugin-react-native` rules are registered but disabled (the plugin does not yet support ESLint 9 flat config — `context.getScope` was removed in ESLint 9).
 
 ---
+
+## Maestro E2E Testing
 
 ## testID Reference
 
