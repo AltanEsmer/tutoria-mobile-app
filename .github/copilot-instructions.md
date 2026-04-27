@@ -88,6 +88,7 @@ src/
 - Create a small explanation file in `docs/guidance/` every time a phase in ROADMAP.md is completed (only one doc per phase) to explain how to test the phase and if a manual approach is needed.
 - Run all related tests to see if they have passed, if not fix the errors occurred.
 - Do not create documents in the base directory.
+- Check if ci.yml tests all passes
 
 ### When completing tasks:
 
