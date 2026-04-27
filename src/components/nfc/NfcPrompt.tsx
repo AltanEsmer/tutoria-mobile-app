@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useHaptics } from '@/hooks/useHaptics';
 import { NfcRing } from './NfcRing';
 
 interface NfcPromptProps {
@@ -25,6 +26,7 @@ export function NfcPrompt({
   error,
 }: NfcPromptProps) {
   const [manualCode, setManualCode] = useState('');
+  const { buttonTapHaptic } = useHaptics();
 
   const handleOpenSettings = useCallback(() => {
     if (Platform.OS === 'android') {
@@ -37,10 +39,11 @@ export function NfcPrompt({
   const handleManualSubmit = useCallback(() => {
     const code = manualCode.trim();
     if (code && onManualSubmit) {
+      buttonTapHaptic();
       onManualSubmit(code);
       setManualCode('');
     }
-  }, [manualCode, onManualSubmit]);
+  }, [buttonTapHaptic, manualCode, onManualSubmit]);
 
   // NFC not supported — manual code entry fallback
   if (!nfcSupported) {

@@ -260,26 +260,30 @@ export default function LessonScreen() {
   }, []);
 
   const handleRetry = useCallback(() => {
+    haptics.buttonTapHaptic();
     setFeedbackResult(null);
-  }, []);
+  }, [haptics]);
 
   const handleNextWord = useCallback(() => {
+    haptics.buttonTapHaptic();
     const isPassing =
       (feedbackResult?.overallIsCorrect ?? false) ||
       (feedbackResult?.similarity ?? 0) >= PASSING_THRESHOLD;
     advanceToNextWord(isPassing);
-  }, [feedbackResult, advanceToNextWord]);
+  }, [haptics, feedbackResult, advanceToNextWord]);
 
   const handleRecordStart = useCallback(async () => {
+    haptics.buttonTapHaptic();
     audio.stop();
     await pronunciation.startRecording();
-  }, [audio, pronunciation]);
+  }, [haptics, audio, pronunciation]);
 
   const handleSkip = useCallback(() => {
+    haptics.buttonTapHaptic();
     store.markWordFailed(wordId);
     advanceToNextWord(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wordId, advanceToNextWord]);
+  }, [haptics, wordId, advanceToNextWord]);
 
   // ─── Loading / error / empty states ───────────────────────────────────────
   if (store.isLoading) {
@@ -408,6 +412,7 @@ export default function LessonScreen() {
           ]}
           disabled={audio.isLoading || !currentWord.audio_path}
           onPress={() => {
+            haptics.buttonTapHaptic();
             console.log('[Audio] play button pressed, audio_path:', currentWord.audio_path);
             audio.play(currentWord.audio_path ?? '');
           }}

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { useHaptics } from '@/hooks/useHaptics';
 import { useLessonStore } from '@/stores/useLessonStore';
 import type { WordData } from '@/utils/types';
 
@@ -109,6 +110,7 @@ function WordRow({ word, passed, failed, similarity }: WordRowProps) {
 export default function ResultsScreen() {
   const router = useRouter();
   const { moduleId } = useLocalSearchParams<{ moduleId?: string }>();
+  const { buttonTapHaptic } = useHaptics();
 
   const {
     currentSession,
@@ -170,10 +172,12 @@ export default function ResultsScreen() {
   const onCooldown = moduleId ? isModuleOnCooldown(moduleId) : false;
 
   const handleHome = () => {
+    buttonTapHaptic();
     router.replace('/(public)/(tabs)/home');
   };
 
   const handleTryAgain = () => {
+    buttonTapHaptic();
     if (moduleId) {
       router.replace(`/(public)/lesson/${moduleId}` as never);
     }
