@@ -9,7 +9,7 @@ import reactNativePlugin from 'eslint-plugin-react-native';
 
 export default [
   {
-    ignores: ['node_modules/**', 'dist/**', '.expo/**', '**/*.json', '__mocks__/**', '**/__tests__/**/*.js'],
+    ignores: ['node_modules/**', 'dist/**', '.expo/**', 'coverage/**', '**/*.json', '__mocks__/**', '**/__tests__/**/*.js'],
   },
   {
     files: ['**/*.ts', '**/*.tsx'],
