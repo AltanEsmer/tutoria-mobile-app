@@ -9,6 +9,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Jest coverage (must not be watched by Metro bundler)
+coverage/
+
 # Native
 .kotlin/
 *.orig.*

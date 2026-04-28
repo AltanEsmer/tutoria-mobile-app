@@ -39,6 +39,9 @@ export default function LessonScreen() {
   const hasLoadedRef = useRef(false);
   const isAdvancingRef = useRef(false);
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks words whose progress was already saved in handleRecordStop (on correct verdict).
+  // advanceToNextWord skips saveProgress for these to prevent double-writes.
+  const savedWordsRef = useRef<Set<string>>(new Set());
 
   // ─── Load module on mount ──────────────────────────────────────────────────
   const loadModule = useCallback(async () => {
@@ -99,6 +102,10 @@ export default function LessonScreen() {
     return () => {
       store.reset();
       store.resetSession();
+      // Copy ref value inside cleanup to satisfy react-hooks/exhaustive-deps.
+      // The Set instance is stable; clear() on unmount resets saved-word tracking.
+      const saved = savedWordsRef.current;
+      saved.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -146,7 +153,15 @@ export default function LessonScreen() {
         autoAdvanceTimerRef.current = null;
       }
 
-      const activityKey = (currentWord.display_text ?? '').trim();
+      const rawActivityKey = (currentWord.display_text ?? '').trim();
+      // Fall back to word.id when display_text is empty (IPA-only curriculum words).
+      const activityKey = rawActivityKey || currentWord.id || '';
+      if (!rawActivityKey && activityKey) {
+        console.warn(
+          '[advanceToNextWord] display_text empty, using word.id as activityKey:',
+          activityKey,
+        );
+      }
 
       setIsSubmitting(true);
       try {
@@ -156,16 +171,14 @@ export default function LessonScreen() {
           isCorrect,
         });
         // Write to the progress table so GET /v1/progress reflects this attempt.
-        // Use display_text as the stable activity identifier — curriculum word IDs are
-        // R2-local and may not match D1 activity UUIDs.
-        // Guard: skip saveProgress when display_text is empty (some R2 curriculum
-        // words carry only audio_files IPA payloads and have no display_text).
-        if (activityKey) {
+        // Skip if handleRecordStop already persisted this word (correct verdict fast-path).
+        if (activityKey && !savedWordsRef.current.has(activityKey)) {
           await saveProgress(activeProfile.id, activityKey, {
             isCorrect,
-            displayText: activityKey,
+            displayText: rawActivityKey || activityKey,
           });
         }
+        savedWordsRef.current.delete(activityKey);
         // Invalidate the progress store so the next Progress-tab focus fetches fresh data.
         useProgressStore.getState().invalidate();
       } catch {
@@ -179,16 +192,17 @@ export default function LessonScreen() {
             isCorrect,
           },
         });
-        if (activityKey) {
+        if (activityKey && !savedWordsRef.current.has(activityKey)) {
           useProgressStore.getState().addToQueue({
             type: 'saveProgress',
             endpoint: `/v1/progress/${activeProfile.id}/${encodeURIComponent(activityKey)}`,
-            payload: { isCorrect, displayText: activityKey },
+            payload: { isCorrect, displayText: rawActivityKey || activityKey },
             headers: {
               'X-Idempotency-Key': `offline-${activeProfile.id}-${activityKey}-${Date.now()}`,
             },
           });
         }
+        savedWordsRef.current.delete(activityKey);
       } finally {
         setIsSubmitting(false);
       }
@@ -252,6 +266,20 @@ export default function LessonScreen() {
 
     if (passed) {
       haptics.successHaptic();
+      // Persist progress immediately so it's saved even if the user abandons before Next.
+      const freshProfile = useProfileStore.getState().activeProfile;
+      const rawKey = (freshWord.display_text ?? '').trim();
+      const activityKey = rawKey || freshWord.id || '';
+      if (activityKey && freshProfile) {
+        savedWordsRef.current.add(activityKey);
+        saveProgress(freshProfile.id, activityKey, {
+          isCorrect: true,
+          displayText: rawKey || activityKey,
+        }).catch(() => {
+          // Remove from saved set so advanceToNextWord will retry via its own save + queue.
+          savedWordsRef.current.delete(activityKey);
+        });
+      }
     } else {
       haptics.warningHaptic();
     }

@@ -1,5 +1,5 @@
 import { useFocusEffect, useIsFocused } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityList } from '@/components/progress/ActivityList';
@@ -30,6 +30,7 @@ function ProgressScreenContent() {
 
   const [error, setError] = useState<string | null>(null);
   const isFocused = useIsFocused();
+  const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!activeProfile) return;
@@ -56,22 +57,23 @@ function ProgressScreenContent() {
     };
   }, [activeProfile, setActivities, setLoading, setStreakDays]);
 
+  // Deduplicate rapid fetch triggers (useFocusEffect + useEffect([lastInvalidatedAt]) can both
+  // fire within the same render cycle when navigating back from a lesson).
+  const debouncedFetch = useCallback(() => {
+    if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
+    fetchDebounceRef.current = setTimeout(() => fetchData(), 50);
+  }, [fetchData]);
+
   useFocusEffect(
     useCallback(() => {
       console.log('[Progress] focus effect fired, fetching…');
-      const cleanup = fetchData();
-      return () => {
-        cleanup?.then((c) => c?.());
-      };
-    }, [fetchData]),
+      debouncedFetch();
+    }, [debouncedFetch]),
   );
 
   useEffect(() => {
     if (lastInvalidatedAt > 0 && isFocused && activeProfile) {
-      const id = setTimeout(() => {
-        fetchData();
-      }, 0);
-      return () => clearTimeout(id);
+      debouncedFetch();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastInvalidatedAt]);

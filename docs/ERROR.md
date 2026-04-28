@@ -603,3 +603,24 @@ Also added `useAudioRecorderState` for metering, `peakDetected` silence gate (sk
 **Cause:** ESLint 9 removed `context.getScope()` in favour of `sourceCode.getScope(node)`. `eslint-plugin-react-native@4` still uses the old API internally and has not been updated for ESLint 9 flat config.  
 **Fix:** Register the plugin but set all its rules to `'off'` until an ESLint 9-compatible version is released. The plugin can still be listed in `plugins` for future activation without breaking the lint run.  
 **Generalized rule:** When adding an ESLint plugin for a React Native project using ESLint 9 flat config, verify the plugin version supports the new `sourceCode.getScope(node)` API. If not, register it but disable its rules with `'off'` rather than removing it entirely.
+
+### Progress tab double-refresh after returning from lesson
+**Context:** `src/app/(public)/(tabs)/progress.tsx` — `useFocusEffect` + `useEffect([lastInvalidatedAt])`
+**Error:** Progress tab briefly shows loading → data → loading → data (two fetch cycles) every time the user navigates back from a completed lesson, making it look like an infinite auto-refresh.
+**Cause:** Both `useFocusEffect` (fires on tab focus) and `useEffect([lastInvalidatedAt])` (fires when progress store is invalidated) call `fetchData()`. After a lesson, `invalidate()` is called AND the tab gains focus simultaneously, so both effects fire within the same render cycle — two concurrent API calls with two loading states.
+**Fix:** Added a `fetchDebounceRef` (50ms debounce) and `debouncedFetch` callback in `progress.tsx`. Both `useFocusEffect` and `useEffect([lastInvalidatedAt])` now call `debouncedFetch`, ensuring at most one `fetchData()` call per 50ms window.
+**Generalized rule:** When a screen has two independent triggers for the same side-effect (e.g., focus event + store invalidation), deduplicate them with a debounce ref rather than letting both fire. Both triggers are needed (one handles "just focused", the other handles "already focused when data changes"), but they must not fire concurrently.
+
+### MissionCard lessons don't save word progress (display_text empty)
+**Context:** `src/app/(public)/lesson/[moduleId].tsx` — `advanceToNextWord()` and `handleRecordStop()`
+**Error:** Words practiced via the "Ready to Learn" MissionCard button are not saved to the progress backend — the progress tab shows no new entries after the lesson.
+**Cause:** `activityKey = (currentWord.display_text ?? '').trim()` returns `''` for IPA-only curriculum words (those with only `audio_files` / no `display_text`). The guard `if (activityKey)` then silently skips `saveProgress`. NFC-launched lessons happened to use modules with `display_text` populated, masking the bug.
+**Fix:** Fall back to `currentWord.id` as `activityKey` when `display_text` is empty: `const activityKey = rawActivityKey || currentWord.id || ''`. A `console.warn` is emitted when the fallback is used so the data gap is visible in dev logs.
+**Generalized rule:** Activity identifiers derived from API data should always have a fallback (`word.id`, a stable UUID) so that progress is never silently dropped due to a missing optional field in the word payload.
+
+### Progress lost when user does not click Next after correct pronunciation
+**Context:** `src/app/(public)/lesson/[moduleId].tsx` — `handleRecordStop()` and `advanceToNextWord()`
+**Error:** If the user gets a correct pronunciation verdict but closes the app or navigates away before clicking "Next", `saveProgress` is never called and the attempt is not recorded in the backend.
+**Cause:** `saveProgress` was only called inside `advanceToNextWord`, which is triggered by the Next button. Correct result + no Next click = no backend write.
+**Fix:** `handleRecordStop` now calls `saveProgress` immediately (fire-and-forget) when `passed=true`, adding the word's `activityKey` to `savedWordsRef`. `advanceToNextWord` checks `savedWordsRef` and skips `saveProgress` if the word was already persisted. On `saveProgress` failure, the word is removed from `savedWordsRef` so `advanceToNextWord` retries it.
+**Generalized rule:** Progress persistence should happen at the earliest safe point (correct verdict confirmed) rather than at a later UI interaction (button click). UI navigation and data persistence are separate concerns — data must be committed as soon as the result is known.
