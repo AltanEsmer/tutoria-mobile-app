@@ -90,3 +90,5 @@ yarn-error.*
 # @end expo-cli
 # Maestro E2E test secrets
 .maestro/.env
+
+ios 2/
