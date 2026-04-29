@@ -42,6 +42,9 @@ export default function LessonScreen() {
   // Tracks words whose progress was already saved in handleRecordStop (on correct verdict).
   // advanceToNextWord skips saveProgress for these to prevent double-writes.
   const savedWordsRef = useRef<Set<string>>(new Set());
+  // Tracks words for which completeWord() was already called on pronunciation success.
+  // advanceToNextWord skips completeWord for these to prevent duplicate API calls.
+  const completedWordsRef = useRef<Set<string>>(new Set());
 
   // ─── Load module on mount ──────────────────────────────────────────────────
   const loadModule = useCallback(async () => {
@@ -101,11 +104,13 @@ export default function LessonScreen() {
     }
     // Capture the ref value inside the effect before cleanup function
     const saved = savedWordsRef.current;
+    const completed = completedWordsRef.current;
     return () => {
       store.reset();
       store.resetSession();
       // Use captured saved instance instead of accessing ref in cleanup
       saved.clear();
+      completed.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -165,11 +170,14 @@ export default function LessonScreen() {
 
       setIsSubmitting(true);
       try {
-        await completeWord(moduleId, {
-          profileId: activeProfile.id,
-          wordId: currentWord.id,
-          isCorrect,
-        });
+        if (!completedWordsRef.current.has(currentWord.id)) {
+          await completeWord(moduleId, {
+            profileId: activeProfile.id,
+            wordId: currentWord.id,
+            isCorrect,
+          });
+        }
+        completedWordsRef.current.delete(currentWord.id);
         // Write to the progress table so GET /v1/progress reflects this attempt.
         // Skip if handleRecordStop already persisted this word (correct verdict fast-path).
         if (activityKey && !savedWordsRef.current.has(activityKey)) {
@@ -183,15 +191,18 @@ export default function LessonScreen() {
         useProgressStore.getState().invalidate();
       } catch {
         // Queue failed requests for offline sync and replay on reconnect.
-        useProgressStore.getState().addToQueue({
-          type: 'completeWord',
-          endpoint: `/v1/modules/${moduleId}/word`,
-          payload: {
-            profileId: activeProfile.id,
-            wordId: currentWord.id,
-            isCorrect,
-          },
-        });
+        if (!completedWordsRef.current.has(currentWord.id)) {
+          useProgressStore.getState().addToQueue({
+            type: 'completeWord',
+            endpoint: `/v1/modules/${moduleId}/word`,
+            payload: {
+              profileId: activeProfile.id,
+              wordId: currentWord.id,
+              isCorrect,
+            },
+          });
+        }
+        completedWordsRef.current.delete(currentWord.id);
         if (activityKey && !savedWordsRef.current.has(activityKey)) {
           useProgressStore.getState().addToQueue({
             type: 'saveProgress',
@@ -278,6 +289,20 @@ export default function LessonScreen() {
         }).catch(() => {
           // Remove from saved set so advanceToNextWord will retry via its own save + queue.
           savedWordsRef.current.delete(activityKey);
+        });
+      }
+      // Also call completeWord() eagerly so the backend session marks this word as done.
+      // Without this, exiting before "Next" leaves completedWords[] incomplete on the backend,
+      // causing hydrateFromSession() to restart from this word on re-entry.
+      if (freshWordId && moduleId && freshProfile) {
+        completedWordsRef.current.add(freshWordId);
+        completeWord(moduleId, {
+          profileId: freshProfile.id,
+          wordId: freshWordId,
+          isCorrect: true,
+        }).catch(() => {
+          // Remove so advanceToNextWord will retry the call.
+          completedWordsRef.current.delete(freshWordId);
         });
       }
     } else {
