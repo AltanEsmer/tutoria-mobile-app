@@ -1,12 +1,12 @@
 ---
 name: thesis-writing
 description: |
-  Expert assistant for writing SDU bachelor thesis sections in LaTeX. Covers all chapters of the Software Engineering bachelor project report: Abstract, Introduction, Project Background, Problem Statement, Proposed Solution, Implementation, Software Engineering Practices, Discussion, Conclusion, and Appendix. Use when drafting, expanding, or reviewing any thesis chapter or section.
+  Expert assistant for writing SDU bachelor thesis sections in plain text format. Covers all chapters of the Software Engineering bachelor project report: Abstract, Introduction, Project Background, Problem Statement, Proposed Solution, Implementation, Software Engineering Practices, Discussion, Conclusion, and Appendix. Use when drafting, expanding, or reviewing any thesis chapter or section.
 ---
 
 # Thesis Writing — SDU Bachelor Project
 
-This skill assists with writing and structuring all sections of the SDU Software Engineering Bachelor Project thesis, authored in LaTeX using the SDU 2025 report template.
+This skill assists with writing and structuring all sections of the SDU Software Engineering Bachelor Project thesis, authored in plain text (.txt) format.
 
 ---
 
@@ -14,29 +14,29 @@ This skill assists with writing and structuring all sections of the SDU Software
 
 - **Institution:** University of Southern Denmark (SDU)
 - **Programme:** Software Engineering, 6th Semester
-- **Document class:** `report` (11pt, A4, two-sided)
-- **Template:** SDU Software Engineering Course 2025 template
-- **Main file:** `main.tex` — includes all chapter files from `Chapters/`
-- **Bibliography:** `abbrv` style, stored in `references.bib`
+- **Format:** Plain text (.txt files)
+- **Location:** `thesis/` directory in project root
+- **File structure:** Each chapter in its own `.txt` file
+- **Bibliography:** References tracked in `thesis/references.txt`
 
 ---
 
 ## Chapter Structure
 
-The thesis is divided into the following chapters, each in its own `.tex` file under `Chapters/`:
+The thesis is divided into the following chapters, each in its own `.txt` file under `thesis/`:
 
-| File | Chapter | Label |
-|---|---|---|
-| `Abstract.tex` | Abstract (front matter) | — |
-| `Introduction.tex` | 1. Introduction | `chap:intro` |
-| `Project_Background.tex` | 2. Project Background | `chap:background` |
-| `Problem.tex` | 3. Problem Statement | `chap:problem` |
-| `Solution.tex` | 4. Proposed Solution | `chap:Solution` |
-| `Implementation.tex` | 5. Implementation | `chap:implementation` |
-| `SE.tex` | 6. Software Engineering Practices | `chap:SE` |
-| `Discussion.tex` | 7. Discussion | `chap:discussion` |
-| `Conclusion.tex` | 8. Conclusion | `chap:conclude` |
-| `Appendix.tex` | Appendix A | — |
+| File | Chapter |
+|---|---|
+| `Abstract.txt` | Abstract (front matter) |
+| `Introduction.txt` | 1. Introduction |
+| `Project_Background.txt` | 2. Project Background |
+| `Problem.txt` | 3. Problem Statement |
+| `Solution.txt` | 4. Proposed Solution |
+| `Implementation.txt` | 5. Implementation |
+| `SE.txt` | 6. Software Engineering Practices |
+| `Discussion.txt` | 7. Discussion |
+| `Conclusion.txt` | 8. Conclusion |
+| `Appendix.txt` | Appendix A |
 
 ---
 
@@ -102,61 +102,74 @@ The thesis is divided into the following chapters, each in its own `.tex` file u
 
 ---
 
-## LaTeX Conventions
+## Text Formatting Conventions
 
-### Structure
-```latex
-\section{Section Title}
-\subsection{Subsection Title}
-\subsubsection{Subsubsection Title}
+### Section Structure
+```
+# Chapter Title
+
+## Section Title
+
+### Subsection Title
+
+#### Subsubsection Title (if needed)
 ```
 
-### Figures
-```latex
-\begin{figure}[htbp]
-  \centering
-  \includegraphics[width=0.8\textwidth]{Images/filename.png}
-  \caption{A descriptive caption.}
-  \label{fig:unique-label}
-\end{figure}
+### Lists
 ```
-Reference with: `Figure~\ref{fig:unique-label}`
+Unordered lists:
+- Item 1
+- Item 2
+  - Nested item 2a
+  - Nested item 2b
+
+Numbered lists:
+1. First item
+2. Second item
+   a. Nested item 2a
+   b. Nested item 2b
+```
+
+### References
+- Use [1], [2], etc. for inline citations (refer to thesis/references.txt for full entries)
+- Format: "As noted in research [1], the approach shows promise."
+- Multiple: "Studies [1, 2, 3] confirm this finding."
+
+### Code Blocks
+```
+Code example (plain text):
+
+    def calculate_score(input):
+        return input * 2
+
+```
 
 ### Tables
-```latex
-\begin{table}[htbp]
-  \centering
-  \begin{tabular}{lll}
-    \toprule
-    Column 1 & Column 2 & Column 3 \\
-    \midrule
-    Data & Data & Data \\
-    \bottomrule
-  \end{tabular}
-  \caption{A descriptive caption.}
-  \label{tab:unique-label}
-\end{table}
-```
-Reference with: `Table~\ref{tab:unique-label}`
+Use simple ASCII formatting:
 
-### Code Listings
-```latex
-\begin{lstlisting}[language=Python, caption={Description}, label={lst:label}]
-# code here
-\end{lstlisting}
+```
+┌─────────────────┬──────────────────┐
+│ Column 1        │ Column 2         │
+├─────────────────┼──────────────────┤
+│ Data            │ Data             │
+│ More data       │ More data        │
+└─────────────────┴──────────────────┘
 ```
 
-### Citations
-- Single: `\cite{authorYYYYkeyword}`
-- Multiple: `\cite{author1,author2}`
-- Non-breaking space before cite: `text~\cite{ref}`
+Or simpler format (tab or space-aligned):
+```
+Column 1        Column 2
+─────────────── ──────────────────
+Data            Data
+More data       More data
+```
 
-### Cross-references
-- Always use `~\ref{}` (non-breaking space) for figures, tables, sections.
-- Use `\label{}` immediately after `\chapter{}`, `\section{}`, `\begin{figure}`, etc.
-
-### Nomenclature
-Add entries with `\nomenclature{SYMBOL}{Definition}` and they appear in the nomenclature list.
+### Figures/Images
+Reference external images:
+```
+[Figure 1: Architecture diagram - see images/architecture.png]
+[Figure 2: Flow chart - see images/flow.png]
+```
 
 ---
 
@@ -174,8 +187,8 @@ Add entries with `\nomenclature{SYMBOL}{Definition}` and they appear in the nome
 
 ## Common Workflow
 
-1. Identify which chapter file to edit: `Chapters/<ChapterName>.tex`
+1. Identify which chapter file to edit: `thesis/<ChapterName>.txt`
 2. Draft the section content following the chapter guidelines above.
-3. Add `\label{}` to all new sections, figures, and tables.
-4. Add any new bibliography entries to `references.bib`.
-5. Compile with: `pdflatex main.tex` → `bibtex main` → `pdflatex main.tex` × 2.
+3. Use markdown-style headings (# ## ###) for structure.
+4. Add inline citations [N] referencing thesis/references.txt entries.
+5. When writing is complete, the text can be converted to PDF or other formats as needed.
