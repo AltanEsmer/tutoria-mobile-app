@@ -99,12 +99,12 @@ export default function LessonScreen() {
       hasLoadedRef.current = true;
       loadModule();
     }
+    // Capture the ref value inside the effect before cleanup function
+    const saved = savedWordsRef.current;
     return () => {
       store.reset();
       store.resetSession();
-      // Copy ref value inside cleanup to satisfy react-hooks/exhaustive-deps.
-      // The Set instance is stable; clear() on unmount resets saved-word tracking.
-      const saved = savedWordsRef.current;
+      // Use captured saved instance instead of accessing ref in cleanup
       saved.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
