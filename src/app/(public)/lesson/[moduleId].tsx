@@ -8,7 +8,6 @@ import { useAudio } from '@/hooks/useAudio';
 import { useHaptics } from '@/hooks/useHaptics';
 import { usePronunciation } from '@/hooks/usePronunciation';
 import {
-  completeSession,
   completeWord,
   saveProgress,
   startOrResumeModule,
@@ -19,10 +18,10 @@ import { useLessonStore } from '@/stores/useLessonStore';
 import { useProfileStore } from '@/stores/useProfileStore';
 import { useProgressStore } from '@/stores/useProgressStore';
 import { MAX_PREFETCH_WORDS } from '@/utils/constants';
+import { isPronunciationPassing } from '@/utils/pronunciation';
 import type { PronunciationCheckResponse } from '@/utils/types';
 
 const MAX_WORD_ATTEMPTS = 3;
-const PASSING_THRESHOLD = 80;
 
 export default function LessonScreen() {
   const { moduleId } = useLocalSearchParams<{ moduleId: string }>();
@@ -127,14 +126,10 @@ export default function LessonScreen() {
   useEffect(() => {
     if (store.sessionComplete && moduleId) {
       store.setCooldown(moduleId);
-      // Best-effort backend notification — don't block navigation
-      if (activeProfile) {
-        completeSession(moduleId, activeProfile.id)
-          .then(() => useProgressStore.getState().invalidate())
-          .catch(() => {
-            // Queue for offline sync if needed — session completion is best-effort
-          });
-      }
+      // Backend auto-completes the module on the last completeWord() call
+      // (see docs/tutoria-api.md POST /v1/modules/:moduleId/word). No explicit
+      // session-complete endpoint exists.
+      useProgressStore.getState().invalidate();
       router.replace(`/lesson/results?moduleId=${moduleId}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -271,7 +266,7 @@ export default function LessonScreen() {
     }
 
     const freshWordId = freshWord.id;
-    const passed = result.overallIsCorrect || result.similarity >= PASSING_THRESHOLD;
+    const passed = isPronunciationPassing(result);
     store.recordAttempt(freshWordId, passed, result);
     setFeedbackResult(result);
 
@@ -319,9 +314,7 @@ export default function LessonScreen() {
 
   const handleNextWord = useCallback(() => {
     haptics.buttonTapHaptic();
-    const isPassing =
-      (feedbackResult?.overallIsCorrect ?? false) ||
-      (feedbackResult?.similarity ?? 0) >= PASSING_THRESHOLD;
+    const isPassing = isPronunciationPassing(feedbackResult);
     advanceToNextWord(isPassing);
   }, [haptics, feedbackResult, advanceToNextWord]);
 
@@ -393,9 +386,7 @@ export default function LessonScreen() {
   }
 
   const progress = ((store.currentWordIndex + 1) / store.currentSession.totalWords) * 100;
-  const feedbackIsPassing =
-    (feedbackResult?.overallIsCorrect ?? false) ||
-    (feedbackResult?.similarity ?? 0) >= PASSING_THRESHOLD;
+  const feedbackIsPassing = isPronunciationPassing(feedbackResult);
   const isInteractionDisabled = pronunciation.isChecking || isSubmitting || !!feedbackResult;
 
   return (

@@ -203,7 +203,7 @@ export interface NfcScanState {
 
 export interface OfflineQueueItem {
   id: string;
-  type: 'completeWord' | 'completeSession' | 'saveProgress';
+  type: 'completeWord' | 'saveProgress';
   endpoint: string;
   payload: Record<string, unknown>;
   headers?: Record<string, string>;

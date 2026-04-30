@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getDisplayScore } from '@/utils/pronunciation';
 import type { PronunciationCheckResponse } from '@/utils/types';
 import { ScoreBadge } from './ScoreBadge';
 
@@ -66,7 +67,7 @@ export function PronunciationFeedback({
         {encouragement}
       </Text>
 
-      <ScoreBadge score={result.similarity} size={100} />
+      <ScoreBadge score={getDisplayScore(result, isPassing)} size={100} isPassing={isPassing} />
 
       {result.feedback ? (
         <Text testID="pronunciation-feedback-text" style={styles.feedback}>

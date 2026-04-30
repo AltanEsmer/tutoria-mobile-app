@@ -3,7 +3,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useLessonStore } from '@/stores/useLessonStore';
-import type { WordData } from '@/utils/types';
+import { getDisplayScore, isPronunciationPassing } from '@/utils/pronunciation';
+import type { PronunciationCheckResponse, WordData } from '@/utils/types';
+
+// ─── Helpers ─────────────────────────────────────────────────────
+
+function formatRemaining(ms: number): string {
+  const totalMinutes = Math.ceil(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
 
 // ─── Confetti ────────────────────────────────────────────────────
 
@@ -79,12 +90,16 @@ interface WordRowProps {
   word: WordData;
   passed: boolean;
   failed: boolean;
-  similarity?: number;
+  result?: PronunciationCheckResponse | null;
 }
 
-function WordRow({ word, passed, failed, similarity }: WordRowProps) {
+function WordRow({ word, passed, failed, result }: WordRowProps) {
   const statusIcon = passed ? '✅' : failed ? '❌' : '⏭️';
-  const scoreLabel = similarity !== undefined ? `${Math.round(similarity)}%` : '–';
+  // Use getDisplayScore (Azure wordAccuracyScore on misses) so failed rows
+  // don't display the inflated `similarity` from the Two-Sided judge.
+  const scoreLabel = result
+    ? `${Math.round(getDisplayScore(result, isPronunciationPassing(result)))}%`
+    : '–';
 
   return (
     <View style={styles.wordRow}>
@@ -119,6 +134,7 @@ export default function ResultsScreen() {
     sessionScore,
     resetSession,
     isModuleOnCooldown,
+    getCooldownRemainingMs,
   } = useLessonStore();
 
   // Snapshot session data on mount so it survives resetSession
@@ -130,6 +146,7 @@ export default function ResultsScreen() {
 
   const [session, setSession] = useState(currentSession);
   const [score, setScore] = useState(sessionScore);
+  const [cooldownMessage, setCooldownMessage] = useState<string | null>(null);
 
   useEffect(() => {
     // Extract ref values into state to avoid accessing refs during render
@@ -218,7 +235,7 @@ export default function ResultsScreen() {
             word={item}
             passed={completedRef.current.includes(item.id)}
             failed={failedRef.current.includes(item.id)}
-            similarity={resultsRef.current[item.id]?.similarity}
+            result={resultsRef.current[item.id]}
           />
         )}
         ListFooterComponent={<View style={styles.listFooter} />}
@@ -228,9 +245,28 @@ export default function ResultsScreen() {
       <View style={styles.actions}>
         {moduleId &&
           (onCooldown ? (
-            <View testID="results-cooldown-button" style={[styles.btn, styles.btnDisabled]}>
-              <Text style={styles.btnText}>⏳ On Cooldown</Text>
-            </View>
+            <>
+              <Pressable
+                testID="results-cooldown-button"
+                style={[styles.btn, styles.btnDisabled]}
+                onPress={() => {
+                  buttonTapHaptic();
+                  const remaining = getCooldownRemainingMs(moduleId);
+                  setCooldownMessage(
+                    remaining > 0
+                      ? `Available again in ${formatRemaining(remaining)}`
+                      : 'Available now — tap Try Again',
+                  );
+                }}
+              >
+                <Text style={styles.btnText}>⏳ On Cooldown</Text>
+              </Pressable>
+              {cooldownMessage ? (
+                <Text testID="results-cooldown-message" style={styles.cooldownMessage}>
+                  {cooldownMessage}
+                </Text>
+              ) : null}
+            </>
           ) : (
             <Pressable
               testID="results-try-again-button"
@@ -404,5 +440,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Lexend_700Bold',
     fontSize: 16,
     color: '#FFFFFF',
+  },
+  cooldownMessage: {
+    fontFamily: 'Lexend_400Regular',
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

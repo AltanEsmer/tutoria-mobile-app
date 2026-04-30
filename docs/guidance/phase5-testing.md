@@ -12,15 +12,11 @@ Phase 5 integrates [Maestro](https://maestro.mobile.dev) as the E2E testing fram
 | `.maestro/.env` | Test credentials (git-ignored) |
 | `.maestro/flows/` | 17 YAML test flows covering all screens |
 | All screens + components | `testID` props added to every interactive element |
-| `src/services/api/modules.ts` | Added `completeSession()` API call (was missing) |
-| `src/app/(public)/lesson/[moduleId].tsx` | Calls `completeSession` when a module finishes |
 | `src/components/ui/Button.tsx` | Added `testID` prop support |
 
-### Bug Fixed: `completeSession` Missing API Call
+### Note: No Separate `completeSession` Endpoint
 
-**Before:** When a student finished a lesson, the app navigated to the results screen but never told the backend the session was complete. The ROADMAP flagged this as ⚠️ Missing.
-
-**After:** `completeSession(moduleId, profileId)` is now called before navigating to results. It's best-effort — if offline or the call fails, navigation still happens and sync can catch up later.
+The original assumption that the backend required an explicit "complete session" POST was incorrect. The backend **auto-completes the module** when the last word is marked done via `POST /v1/modules/:moduleId/word` (response includes `isModuleComplete: true`). No separate `/complete` endpoint exists. The lesson screen calls `useProgressStore.getState().invalidate()` directly after `sessionComplete` becomes `true`, which is sufficient to refresh the progress dashboard.
 
 ---
 

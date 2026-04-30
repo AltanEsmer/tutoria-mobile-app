@@ -40,6 +40,7 @@ interface LessonStore {
   markWordFailed: (wordId: string) => void;
   resetSession: () => void;
   isModuleOnCooldown: (moduleId: string) => boolean;
+  getCooldownRemainingMs: (moduleId: string) => number;
   setCooldown: (moduleId: string) => void;
   getAttemptCount: (wordId: string) => number;
 }
@@ -149,6 +150,12 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
   isModuleOnCooldown: (moduleId) => {
     const timestamp = get().cooldownTimestamps[moduleId];
     return timestamp !== undefined && Date.now() - timestamp < COOLDOWN_MS;
+  },
+
+  getCooldownRemainingMs: (moduleId) => {
+    const timestamp = get().cooldownTimestamps[moduleId];
+    if (timestamp === undefined) return 0;
+    return Math.max(0, timestamp + COOLDOWN_MS - Date.now());
   },
 
   setCooldown: (moduleId) =>

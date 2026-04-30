@@ -645,3 +645,66 @@ Also added `useAudioRecorderState` for metering, `peakDetected` silence gate (sk
 3. Also exposed `clearError()` from the hook and called it from `handleRetry` in `src/app/(public)/lesson/[moduleId].tsx` so a stale "We couldn't hear you" message never lingers under the buttons after Retry.
 4. Added a one-shot `[Pronunciation] first metering frame` log on the first accepted frame of each session, emitting `{rawMetering, normalized, sinceStartMs, droppedFrames}` for future tuning.
 **Generalized rule:** Any continuously-polled native source (metering, geolocation, sensor stream) consumed across discrete sessions must be (a) reset *and* (b) timestamp-gated when a new session starts. Resetting alone leaves a window where polled-but-not-yet-fresh frames bleed in; timestamp-gating alone leaves dedupe state that only filters one frame. Both are required to guarantee the new session sees only its own data.
+
+---
+
+## 404 POST /v1/modules/:id/complete on lesson finish
+
+**Symptom:** Every lesson completion logged `ERROR [API] 404 POST https://api-dev.tutoria.ac/v1/modules/module13-1/complete: Unknown error`. The user was functionally unaffected (the error was caught silently), but the log polluted production output.
+
+**Cause:** `completeSession()` in `src/services/api/modules.ts` POSTed to `/v1/modules/:moduleId/complete`, an endpoint that does not exist in the backend. Per `docs/tutoria-api.md` (POST /v1/modules/:moduleId/word), the backend auto-completes the module when the last word is marked done via `completeWord()`; the response includes `isModuleComplete: true`. The function was introduced in Phase 5 based on a ROADMAP item — the endpoint was inferred from frontend requirements without confirming it existed in the API contract.
+
+**Fix:** Deleted `completeSession()` from `src/services/api/modules.ts`. Removed the call from `src/app/(public)/lesson/[moduleId].tsx`. The `sessionComplete` `useEffect` now calls `useProgressStore.getState().invalidate()` directly (no HTTP request needed — the backend already handled completion via the last `completeWord` call).
+
+**Generalized rule:** Before adding any new API call, verify the endpoint exists in `docs/tutoria-api.md` (or confirm with backend). Do not infer endpoints from frontend roadmap items.
+
+---
+
+## Wrong word ("slow") passes as correct word ("slept") with 100% score
+
+**Context:** `src/app/(public)/lesson/[moduleId].tsx` — `handleRecordStop()`, `handleNextWord()`, and render-time `feedbackIsPassing` calculation.
+**Symptom:** A child says "slow" instead of "slept". Azure force-align returns a high `similarity` score (phonetically similar words score ~90+). The app shows "passed" and the natural-language `feedback` field simultaneously says "heard slow — doesn't match, try again". The word is marked correct even though it is wrong.
+**Cause:** The client's pass calculation was `overallIsCorrect || similarity >= PASSING_THRESHOLD`, duplicated three times in `[moduleId].tsx`. This expression ignores `pronunciation_match`, which the server sets to `false` for wrong-word verdicts. Azure force-align can produce high similarity for phonetically similar but lexically incorrect words; `pronunciation_match=false` is the server's explicit "wrong word" signal and must not be overridden by raw similarity.
+**Fix:** Extracted a single `isPronunciationPassing(result)` helper in `src/utils/pronunciation.ts`. The helper checks `pronunciation_match === false` first and returns `false` immediately when the signal is present, regardless of `similarity` or `overallIsCorrect`. All three duplicated expressions in `[moduleId].tsx` now call this helper. The check is `=== false` (not `!== true`) so `undefined` / missing field falls through to historical behavior for backward compatibility with older server responses.
+**Generalized rule:** Always combine `pronunciation_match` with `similarity` — high force-align similarity can hide wrong-word verdicts. Never treat any single field as the sole pass signal. The server's explicit wrong-word flag (`pronunciation_match=false`) must always win over numeric heuristics.
+
+---
+
+## Wrong word ("left") still passes when server emits inconsistent signals
+
+**Context:** `src/utils/pronunciation.ts` — `isPronunciationPassing()` after the first wrong-word fix.
+**Symptom:** A child says "left" instead of "pack". Server transcribes it correctly (`ipa_transcription_user` shows the wrong word), yet the response carries `overallIsCorrect: true` and `pronunciation_match: true` (or omits `pronunciation_match` entirely). The previous guard `pronunciation_match === false` had no negative signal to fail on, so the wrong word passed with 100%.
+**Cause:** `pronunciation_match` is not always emitted as `false` on the wrong-word path. The Gemini Two-Sided judge sometimes signals the verdict only via `resultType` (`"wrong_word"`, `"mismatch"`, etc.) or via natural-language `feedback` ("I heard left, try pack"), while Azure force-align happily reports high `similarity` and `overallIsCorrect: true`. Trusting any single field is fragile because the server pipeline has multiple judges that disagree.
+**Fix:** Hardened `isPronunciationPassing()` to fail fast on **any** negative signal before checking positive thresholds:
+1. `errorType` set → infrastructure failure (caller surfaces banner).
+2. `pronunciation_match === false` → strongest wrong-word flag.
+3. `resultType` not in a positive allow-list (`correct`/`good`/`great`/`pass`/`passed`) → trust the labelled verdict.
+4. `feedback` text contains a negative cue (`doesn't match`, `try again`, `i heard`, `instead of`, `wrong word`, `not quite`, `didn't catch`) → Gemini override.
+5. Only then accept iff `overallIsCorrect` OR `similarity ≥ threshold` (with similarity normalised so 0–1 ratios from the API spec example also work).
+
+Also added a one-shot `[Pronunciation] FULL response:` log in `usePronunciation.stopAndCheck` so future false positives can be diagnosed from the actual response shape.
+
+**Generalized rule:** When a server pipeline emits multiple overlapping verdict signals (boolean flag, enum type, natural-language text, numeric score), use a positive allow-list for "pass" and treat **every** other signal as a fail-fast guard. Never assume a single field is authoritative — judges in a multi-stage pipeline routinely disagree, and the safest default for an educational app is to fail on any negative cue.
+
+---
+
+## Gemini "Two-Sided" judge hallucinates PASS for completely wrong words
+
+**Context:** `src/utils/pronunciation.ts` — `isPronunciationPassing()` after the multi-signal hardening pass.
+**Symptom:** User said "goal" with target word "swept". Server response returned `overallIsCorrect: true`, `similarity: 100`, `pronunciation_match: true`, `resultType: "TWO_SIDED_PASS"`, `feedback: ""` — every high-level signal said PASS. The wrong word still passed with 100% green even after we added pronunciation_match / resultType / feedback-cue guards.
+**Cause:** The Gemini Two-Sided judge in the backend pipeline can hallucinate. Its `debug.twoSided` block claimed `confidence: 98` that the user said `/swept/`, even though Azure's `rawNBest` clearly showed the first detected phoneme was `l` (score 100), `azure.wordAccuracyScore` was `8/100`, `azure.fluencyScore` was `0`, and every entry in `azure.phonemeConfidences` was 0–15. The judge wrote `pronunciation_match: true` based on its own (false) belief, overriding Azure's ground-truth phoneme analysis. Trusting any judge-level signal alone is unsafe — they synthesise from limited context and can fabricate a confident wrong answer.
+**Fix:** Added an Azure-floor guard: when `azure.wordAccuracyScore` is present and `< 50`, the attempt fails regardless of every other signal. Empirical floor — real attempts at the target word score 60–95; observed wrong-word attempts scored <15. The `azure` payload is `unknown` in the type definition, so the guard uses a defensive `extractAzureWordAccuracy()` helper that returns `null` for missing/non-numeric values, preserving back-compat with mocks and any server response shape that omits the field.
+**Generalized rule:** In a multi-judge pipeline (semantic LLM judge + low-level signal-processing judge), the lowest-level ground-truth signal must be a hard gate, not a tiebreaker. LLM judges can hallucinate confident wrong verdicts; phoneme-level scores cannot. When both are available, fail closed on the low-level score before considering the high-level verdict.
+
+---
+
+## Wrong-word attempt shows green 100% badge despite "Try Again" feedback
+
+**Context:** `src/components/lesson/PronunciationFeedback.tsx` + `src/components/lesson/ScoreBadge.tsx` + `src/app/(public)/lesson/results.tsx`.
+**Symptom:** User says "cake" while target word is "crept". `isPronunciationPassing` correctly returns `false` (so the "Try Again" copy + retry button render), yet the score circle shows **100% in green**. Server response: `similarity: 100`, `pronunciation_match: false`, `resultType: "TWO_SIDED_UNKNOWN"`, `azure.wordAccuracyScore: 22`.
+**Cause:** `PronunciationFeedback` rendered `<ScoreBadge score={result.similarity} />` directly, and `ScoreBadge` colored anything ≥80 green. The `similarity` field on the Two-Sided judge path is the judge's transcription self-confidence (often 100 even on a wrong word), not similarity-to-target. The pass/fail decision (`isPassing`) was computed but never propagated to the visual badge. The lesson results screen had the same bug — it pilled `similarity` directly even though pill background color was already driven by passed/failed.
+**Fix:**
+1. Added `isPassing?: boolean` prop to `ScoreBadge`. When provided, color is driven by the boolean (green if pass, red if fail) instead of the numeric thresholds, so a misleading 100% can never paint green.
+2. Added `getDisplayScore(result, isPassing)` helper in `src/utils/pronunciation.ts` that returns `azure.wordAccuracyScore` when the attempt did not pass (the per-phoneme ground-truth signal), falling back to normalized `similarity` only when Azure data is absent or the attempt passed. Clamped to 0–100.
+3. Updated `PronunciationFeedback` and `ResultsScreen.WordRow` to use `getDisplayScore` + the new `isPassing` prop.
+**Generalized rule:** Any UI element derived from a server score must be colored by the same pass/fail decision the rest of the UI uses, not by an independent numeric threshold on a raw field. When multiple judges produce overlapping numeric signals (semantic similarity vs phoneme accuracy), the display value on a "miss" must come from the lowest-level ground-truth signal — never from a high-level judge field that can be inflated by the judge's own self-confidence.

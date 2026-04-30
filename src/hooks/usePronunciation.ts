@@ -329,6 +329,11 @@ export function usePronunciation() {
 
         const checkResult = await checkPronunciation(request as PronunciationCheckRequest);
 
+        // Full response dump — keep until the pronunciation pipeline is stable.
+        // The narrow log below hides resultType nuances and feedback text that
+        // explain false-positive passes (e.g. "left" graded as "pack").
+        console.log('[Pronunciation] FULL response:', JSON.stringify(checkResult));
+
         console.log(
           '[Pronunciation] checkResult:',
           JSON.stringify({

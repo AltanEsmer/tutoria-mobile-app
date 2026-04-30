@@ -4,16 +4,26 @@ import { StyleSheet, Text, View } from 'react-native';
 interface ScoreBadgeProps {
   score: number;
   size?: number;
+  /**
+   * When provided, color is driven by the pass/fail decision rather than the
+   * numeric score. This avoids the failure mode where a high `similarity`
+   * value (which can reflect the Two-Sided judge's transcription confidence,
+   * not target match) paints a wrong-word attempt green. Pass the value
+   * computed by `isPronunciationPassing(result)` from the call site.
+   */
+  isPassing?: boolean;
 }
 
-function getBadgeColor(score: number): string {
+function getBadgeColor(score: number, isPassing?: boolean): string {
+  if (isPassing === true) return '#4CAF50';
+  if (isPassing === false) return '#F44336';
   if (score >= 80) return '#4CAF50';
   if (score >= 50) return '#FF9800';
   return '#F44336';
 }
 
-export function ScoreBadge({ score, size = 80 }: ScoreBadgeProps) {
-  const color = getBadgeColor(score);
+export function ScoreBadge({ score, size = 80, isPassing }: ScoreBadgeProps) {
+  const color = getBadgeColor(score, isPassing);
   const circleStyle = {
     width: size,
     height: size,
