@@ -133,6 +133,49 @@ describe('useLessonStore', () => {
     });
   });
 
+  describe('simple setters', () => {
+    it('setCurrentWord updates currentWord', () => {
+      const word = mockSession.wordData![0];
+      useLessonStore.getState().setCurrentWord(word);
+      expect(useLessonStore.getState().currentWord).toEqual(word);
+    });
+
+    it('setLoading updates isLoading', () => {
+      useLessonStore.getState().setLoading(true);
+      expect(useLessonStore.getState().isLoading).toBe(true);
+      useLessonStore.getState().setLoading(false);
+      expect(useLessonStore.getState().isLoading).toBe(false);
+    });
+
+    it('setError updates error', () => {
+      useLessonStore.getState().setError('something went wrong');
+      expect(useLessonStore.getState().error).toBe('something went wrong');
+      useLessonStore.getState().setError(null);
+      expect(useLessonStore.getState().error).toBeNull();
+    });
+  });
+
+  describe('getCooldownRemainingMs', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('returns 0 when no cooldown has been set', () => {
+      expect(useLessonStore.getState().getCooldownRemainingMs('mod-x')).toBe(0);
+    });
+
+    it('returns remaining ms immediately after setCooldown', () => {
+      useLessonStore.getState().setCooldown('mod-x');
+      const remaining = useLessonStore.getState().getCooldownRemainingMs('mod-x');
+      expect(remaining).toBeGreaterThan(0);
+    });
+
+    it('returns 0 after cooldown expires', () => {
+      useLessonStore.getState().setCooldown('mod-x');
+      jest.advanceTimersByTime(13 * 60 * 60 * 1000); // 13 hours
+      expect(useLessonStore.getState().getCooldownRemainingMs('mod-x')).toBe(0);
+    });
+  });
+
   describe('resetSession', () => {
     it('clears all session tracking data', () => {
       useLessonStore.getState().hydrateFromSession(mockSession);
