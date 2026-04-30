@@ -73,7 +73,13 @@ export function usePronunciation() {
   const isCalibrationDoneRef = useRef(false);
   const consecutiveSpeechFramesRef = useRef(0);
   const meteringFrameCountRef = useRef(0); // diagnostic: frames received per recording
+  const droppedFrameCountRef = useRef(0); // diagnostic: stale frames dropped per recording
   const lastMeteringValueRef = useRef<number | null>(null); // dedupe stale ticks across sessions
+  // Timestamp set immediately after recorder.record() returns. Frames whose tick arrives
+  // before start + WARMUP_MS are dropped — they carry the metering value from the
+  // previous (stopped) session and would otherwise corrupt noise-floor calibration.
+  const recordingStartedAtRef = useRef<number>(0);
+  const WARMUP_MS = 120;
 
   // C3 — Metering effect: normalize raw dB to [0,1] and track speech presence.
   // expo-audio returns negative dB where 0 = max; map via (metering + 60) / 60.
@@ -86,18 +92,39 @@ export function usePronunciation() {
     const rawMetering = recorderState.metering;
     if (rawMetering === undefined || rawMetering === null) return;
 
-    // Skip the very first tick after start if it equals the previous session's last
-    // value — useAudioRecorderState can replay a stale frame from before the reset,
-    // which would corrupt calibration with whatever the last session ended on.
+    // Warm-up gate: useAudioRecorderState polls native metering continuously, so the
+    // first ticks after isRecording flips can still carry the previous session's last
+    // value (recorder.record() is not awaited — there's a small window before the
+    // native layer is truly capturing fresh audio). Drop frames inside this window
+    // so they cannot pollute noise-floor calibration.
+    const sinceStartMs = Date.now() - recordingStartedAtRef.current;
+    if (recordingStartedAtRef.current === 0 || sinceStartMs < WARMUP_MS) {
+      droppedFrameCountRef.current += 1;
+      return;
+    }
+
+    // Belt-and-suspenders: if the very first post-warmup tick still equals the
+    // previous session's last value, treat it as stale and drop it.
     if (
       meteringFrameCountRef.current === 0 &&
       lastMeteringValueRef.current !== null &&
       rawMetering === lastMeteringValueRef.current
     ) {
+      droppedFrameCountRef.current += 1;
       return;
     }
     lastMeteringValueRef.current = rawMetering;
     meteringFrameCountRef.current += 1;
+
+    // One-shot diagnostic on the first accepted frame of each session.
+    if (meteringFrameCountRef.current === 1) {
+      console.log('[Pronunciation] first metering frame:', {
+        rawMetering,
+        normalized: Math.max(0, Math.min(1, (rawMetering + 60) / 60)).toFixed(3),
+        sinceStartMs,
+        droppedFrames: droppedFrameCountRef.current,
+      });
+    }
 
     const normalized = Math.max(0, Math.min(1, (rawMetering + 60) / 60));
 
@@ -156,6 +183,12 @@ export function usePronunciation() {
     consecutiveSpeechFramesRef.current = 0;
     noiseFloorRef.current = 0.2;
     meteringFrameCountRef.current = 0;
+    droppedFrameCountRef.current = 0;
+    // CRITICAL: clear cross-session dedupe state — leftover value from the previous
+    // attempt would only filter the first matching tick, letting subsequent stale
+    // frames pollute calibration on retry.
+    lastMeteringValueRef.current = null;
+    recordingStartedAtRef.current = 0;
 
     try {
       setError(null);
@@ -185,6 +218,9 @@ export function usePronunciation() {
       }
 
       recorder.record();
+      // Stamp BEFORE flipping isRecording so the metering effect has a non-zero
+      // reference point on its first run.
+      recordingStartedAtRef.current = Date.now();
       setIsRecording(true);
     } catch (err) {
       console.error('[Pronunciation] startRecording failed:', err);
@@ -335,6 +371,10 @@ export function usePronunciation() {
     setConsecutiveFailures(0);
   }, []);
 
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
   return {
     isRecording,
     isChecking,
@@ -346,6 +386,7 @@ export function usePronunciation() {
     startRecording,
     stopAndCheck,
     resetFailures,
+    clearError,
   };
 }
 

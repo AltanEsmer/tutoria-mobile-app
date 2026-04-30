@@ -314,7 +314,8 @@ export default function LessonScreen() {
   const handleRetry = useCallback(() => {
     haptics.buttonTapHaptic();
     setFeedbackResult(null);
-  }, [haptics]);
+    pronunciation.clearError();
+  }, [haptics, pronunciation]);
 
   const handleNextWord = useCallback(() => {
     haptics.buttonTapHaptic();
