@@ -31,13 +31,21 @@
       "permissions": [
         "android.permission.NFC"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "android.nfc.action.NDEF_DISCOVERED",
+          "category": ["DEFAULT"],
+          "data": [{ "mimeType": "text/plain" }]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store",
+      "expo-dev-client",
       "expo-router",
       "expo-web-browser",
       [
