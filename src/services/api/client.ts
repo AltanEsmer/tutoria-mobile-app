@@ -31,6 +31,8 @@ const apiClient = axios.create({
     Authorization: `Bearer ${BYPASS_TOKEN}`,
   },
 });
+// Request gzip compression so large pronunciation responses (Azure word-level breakdown) travel faster.
+apiClient.defaults.headers.common['Accept-Encoding'] = 'gzip';
 
 let _signOut: (() => void) | null = null;
 
