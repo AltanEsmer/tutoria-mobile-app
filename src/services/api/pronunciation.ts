@@ -4,6 +4,7 @@ import apiClient from './client';
 
 export async function checkPronunciation(
   req: PronunciationCheckRequest,
+  options?: { signal?: AbortSignal },
 ): Promise<PronunciationCheckResponse> {
   const body: PronunciationCheckRequest = {
     audioFormat: 'wav',
@@ -17,6 +18,7 @@ export async function checkPronunciation(
     {
       timeout: PRONUNCIATION_TIMEOUT_MS,
       ...(req.profileId ? { headers: { 'X-Device-Id': req.profileId } } : {}),
+      ...(options?.signal ? { signal: options.signal } : {}),
     },
   );
   return data;

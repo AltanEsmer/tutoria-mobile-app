@@ -20,6 +20,9 @@ type PronunciationRequestExtended = PronunciationCheckRequest & { profileId?: st
 type WordValidation = { confused: string[]; feedback: Record<string, string> };
 
 const METERING_INTERVAL_MS = 80;
+// Minimum wait after recorder.stop() before reading the WAV file; 60 ms is enough for
+// expo-audio to flush the file to disk on iOS without the full 100 ms we used before.
+const POST_STOP_FLUSH_MS = 60;
 // Calibrated against real iOS device recordings of children speaking single words.
 // expo-audio metering returns negative dB; we normalize via (metering+60)/60 → [0,1].
 // Normal indoor speech peaks at ~0.45-0.70; loud speech 0.70-0.95; ambient noise 0.10-0.25.
@@ -34,6 +37,7 @@ const MAX_DURATION_MS = 5000; // hard cap
 export function usePronunciation() {
   const [isRecording, setIsRecording] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [result, setResult] = useState<PronunciationCheckResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [consecutiveFailures, setConsecutiveFailures] = useState(0);
@@ -242,12 +246,15 @@ export function usePronunciation() {
       }
 
       setIsChecking(true);
+      const t0 = Date.now();
 
       try {
         await recorder.stop();
+        const tStop = Date.now();
         console.log('[Pronunciation] recorder.stop() complete');
         // Let the OS flush the wav file to disk before reading it.
-        await new Promise<void>((r) => setTimeout(r, 100));
+        await new Promise<void>((r) => setTimeout(r, POST_STOP_FLUSH_MS));
+        const tFlush = Date.now();
 
         // C4 — setAudioModeAsync call #2: restore playback mode after recording.
         // Restores iOS session to Playback so output routes to speaker, not earpiece.
@@ -294,6 +301,7 @@ export function usePronunciation() {
         const base64 = await FileSystem.readAsStringAsync(uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
+        const tRead = Date.now();
 
         console.log('[Pronunciation] base64 length:', base64.length);
         if (base64.length === 0) {
@@ -327,7 +335,19 @@ export function usePronunciation() {
           ...(profileId ? { profileId } : {}),
         };
 
-        const checkResult = await checkPronunciation(request as PronunciationCheckRequest);
+        const tNetwork = Date.now();
+        setIsUploading(true);
+        // TODO: wire AbortController on unmount to cancel in-flight requests
+        const checkResult = await checkPronunciation(request as PronunciationCheckRequest, undefined);
+        const tDone = Date.now();
+        setIsUploading(false);
+        console.log('[Pronunciation] timings:', {
+          stop: tStop - t0,
+          flush: tFlush - tStop,
+          read: tRead - tFlush,
+          network: tDone - tNetwork,
+          total: tDone - t0,
+        });
 
         // Full response dump — keep until the pronunciation pipeline is stable.
         // The narrow log below hides resultType nuances and feedback text that
@@ -366,6 +386,7 @@ export function usePronunciation() {
         });
         return null;
       } finally {
+        setIsUploading(false);
         setIsChecking(false);
       }
     },
@@ -383,6 +404,7 @@ export function usePronunciation() {
   return {
     isRecording,
     isChecking,
+    isUploading,
     result,
     error,
     consecutiveFailures,

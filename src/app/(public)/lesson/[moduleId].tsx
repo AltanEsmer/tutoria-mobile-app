@@ -45,7 +45,7 @@ export default function LessonScreen() {
   // advanceToNextWord skips completeWord for these to prevent duplicate API calls.
   const completedWordsRef = useRef<Set<string>>(new Set());
 
-  // ─── Load module on mount ──────────────────────────────────────────────────
+  // ─── Load module on mount ───────────────────────────────────────────────
   const loadModule = useCallback(async () => {
     if (!activeProfile || !moduleId) return;
     store.setLoading(true);
@@ -135,13 +135,13 @@ export default function LessonScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.sessionComplete]);
 
-  // ─── Derived values ────────────────────────────────────────────────────────
+  // ─── Derived values ─────────────────────────────────────────────────────
   const currentWord = store.currentWord;
   const wordId = currentWord?.id ?? '';
   const attemptCount = store.getAttemptCount(wordId);
   const attemptsRemaining = Math.max(0, MAX_WORD_ATTEMPTS - attemptCount);
 
-  // ─── Advance to the next word ──────────────────────────────────────────────
+  // ─── Advance to the next word ────────────────────────────────────────────
   const advanceToNextWord = useCallback(
     async (isCorrect: boolean) => {
       if (!moduleId || !activeProfile || !currentWord) return;
@@ -225,7 +225,7 @@ export default function LessonScreen() {
     [moduleId, activeProfile, currentWord],
   );
 
-  // ─── Auto-advance when word hits max failed attempts ───────────────────────
+  // ─── Auto-advance when word hits max failed attempts ───────────────────────────
   useEffect(() => {
     if (attemptCount >= MAX_WORD_ATTEMPTS && store.failedWords.includes(wordId) && feedbackResult) {
       autoAdvanceTimerRef.current = setTimeout(() => {
@@ -241,7 +241,7 @@ export default function LessonScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptCount, wordId, feedbackResult]);
 
-  // ─── Record + check pronunciation ─────────────────────────────────────────
+  // ─── Record + check pronunciation ──────────────────────────────────────
   const handleRecordStop = useCallback(async () => {
     // Always read fresh word from the store to avoid stale-closure issues.
     const freshWord = useLessonStore.getState().currentWord;
@@ -331,7 +331,7 @@ export default function LessonScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [haptics, wordId, advanceToNextWord]);
 
-  // ─── Loading / error / empty states ───────────────────────────────────────
+  // ─── Loading / error / empty states ────────────────────────────────────────
   if (store.isLoading) {
     return (
       <View testID="lesson-loading" style={styles.centered}>
@@ -478,11 +478,13 @@ export default function LessonScreen() {
           onPressOut={handleRecordStop}
         >
           <Text style={styles.actionButtonText}>
-            {pronunciation.isChecking
+            {pronunciation.isUploading
               ? 'Checking…'
-              : pronunciation.isRecording
-                ? '🔴 Recording'
-                : '🎙️ Hold to Record'}
+              : pronunciation.isChecking
+                ? 'Listening…'
+                : pronunciation.isRecording
+                  ? '🔴 Recording'
+                  : '🎙️ Hold to Record'}
           </Text>
         </Pressable>
       </View>
