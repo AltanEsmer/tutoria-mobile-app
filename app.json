@@ -37,6 +37,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
       "expo-secure-store",
       "expo-router",
       "expo-web-browser",
@@ -45,7 +46,8 @@
         {
           "microphonePermission": "Tutoria records your voice to check pronunciation during lessons"
         }
-      ]
+      ],
+      "./plugins/withNfcIntentFilter.cjs"
     ]
   }
 }
