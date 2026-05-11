@@ -8,6 +8,7 @@ import {
 } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { checkPronunciation } from '../services/api/pronunciation';
 import { useProfileStore } from '../stores/useProfileStore';
 import { MAX_PRONUNCIATION_FAILURES } from '../utils/constants';
@@ -45,15 +46,18 @@ export function usePronunciation() {
 
   const canSkipPronunciation = consecutiveFailures >= MAX_PRONUNCIATION_FAILURES;
 
-  // C1 — Explicit WAV config: IOSOutputFormat.LINEARPCM forces AVAudioRecorder to write real
-  // PCM into the .wav container. Without this, iOS defaults to MPEG4-AAC, the server's WAV
-  // decoder hands AAC bytes to Azure Speech as PCM, and similarity always returns 0.
+  // Platform-specific recording format. Android's MediaRecorder cannot natively produce
+  // PCM/WAV — only AAC-in-MP4 (.m4a) or AMR. iOS uses LINEARPCM into a .wav container so
+  // the server's WAV decoder receives real PCM bytes (without this, AAC bytes get decoded
+  // as PCM and similarity always returns 0 — see commit history for the iOS fix).
+  // On Android we therefore record to .m4a + AAC and label the upload as 'm4a' so the
+  // backend routes it to the AAC/M4A decoder instead of the WAV decoder.
   const recorder = useAudioRecorder({
     isMeteringEnabled: true,
-    extension: '.wav',
+    extension: Platform.OS === 'android' ? '.m4a' : '.wav',
     sampleRate: 16000,
     numberOfChannels: 1,
-    bitRate: 128000,
+    bitRate: Platform.OS === 'android' ? 64000 : 128000,
     android: { outputFormat: 'mpeg4', audioEncoder: 'aac' },
     ios: {
       outputFormat: IOSOutputFormat.LINEARPCM,
@@ -204,7 +208,13 @@ export function usePronunciation() {
       if (isCancelledRef.current) return;
 
       // C4 — setAudioModeAsync call #1: enable recording mode before capture.
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      // shouldRouteThroughEarpiece=false ensures Android keeps routing to the speaker
+      // while we hold the recording mode open.
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldRouteThroughEarpiece: false,
+      });
 
       if (isCancelledRef.current) return;
 
@@ -258,8 +268,14 @@ export function usePronunciation() {
 
         // C4 — setAudioModeAsync call #2: restore playback mode after recording.
         // Restores iOS session to Playback so output routes to speaker, not earpiece.
+        // On Android, AudioManager may stick to the earpiece route after recording
+        // unless we explicitly request the speaker again.
         try {
-          await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+          await setAudioModeAsync({
+            allowsRecording: false,
+            playsInSilentMode: true,
+            shouldRouteThroughEarpiece: false,
+          });
         } catch {
           // Best-effort: audio mode reset failure should not affect pronunciation scoring
         }
@@ -280,9 +296,17 @@ export function usePronunciation() {
           return null;
         }
 
-        const uri = recorder.uri;
+        const rawUri = recorder.uri;
 
-        if (!uri) throw new Error('No recording URI');
+        if (!rawUri) throw new Error('No recording URI');
+
+        // Android's MediaRecorder sometimes returns a bare path (`/data/...`) instead of
+        // a `file://` URI. FileSystem and expo-audio both require the scheme prefix —
+        // without it, getInfoAsync silently reports the file as missing on some devices.
+        const uri =
+          Platform.OS === 'android' && !rawUri.startsWith('file://')
+            ? `file://${rawUri}`
+            : rawUri;
 
         // Validate the file exists and has non-trivial size before reading it.
         const info = await FileSystem.getInfoAsync(uri);
@@ -323,12 +347,15 @@ export function usePronunciation() {
         }
 
         // C2 — Build request with explicit format, unit type, language, validation, and profileId.
+        // audioFormat must match the actual encoder output per platform — see the recorder
+        // config above. Sending 'wav' from Android (where the file is AAC) makes the server's
+        // WAV decoder produce garbage and similarity always returns 0.
         const profileId = useProfileStore.getState().activeProfile?.id;
         const request: PronunciationRequestExtended = {
           audio: base64,
           displayText,
           targetIPA,
-          audioFormat: 'wav',
+          audioFormat: Platform.OS === 'android' ? 'm4a' : 'wav',
           unitType: 'word',
           language: 'english',
           ...(validation ? { validation } : {}),
@@ -374,7 +401,13 @@ export function usePronunciation() {
         setResult(checkResult);
         setConsecutiveFailures(0);
         return checkResult;
-      } catch {
+      } catch (err) {
+        // Surface the actual failure: format mismatches, permission denials, and network
+        // errors all hit this branch and used to be indistinguishable in the UI.
+        console.error(
+          '[Pronunciation] stopAndCheck failed:',
+          err instanceof Error ? `${err.name}: ${err.message}` : err,
+        );
         setConsecutiveFailures((prev) => {
           const next = prev + 1;
           setError(

@@ -143,7 +143,7 @@ export interface PronunciationCheckRequest {
   targetIPA: string;
   profileId?: string;
   language?: string;
-  audioFormat?: 'wav' | 'mp3';
+  audioFormat?: 'wav' | 'mp3' | 'm4a';
   unitType?: 'phoneme' | 'syllable' | 'word';
   validation?: {
     confused: string[];
