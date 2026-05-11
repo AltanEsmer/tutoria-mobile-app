@@ -16,7 +16,7 @@
 | **Module Session** | Partial | `startOrResumeModule`, `completeWord`, `abandonModule` wired; `completeSession` POST to backend is **missing** — session marked complete locally only | `src/services/api/modules.ts`, `src/stores/useLessonStore.ts` |
 | **Pronunciation** | Partial | Recording, upload, score display, retry, skip-after-2-failures all implemented; latency on slow networks is a known risk (20 s timeout, base64-encoded WAV in JSON body); timing logs and gzip just landed on this branch | `src/hooks/usePronunciation.ts`, `src/services/api/pronunciation.ts` |
 | **Audio Cache** | Ready | First 3 words prefetched on module load; `expo-file-system` local cache; cache-first playback with error icon fallback | `src/services/cache/audioCache.ts`, `src/hooks/useAudio.ts` |
-| **NFC** | Dev-build ready (Android) | `react-native-nfc-manager` 3.17.2 installed; `expo-dev-client` added; Android NDEF intent filter declared in `app.json`; real read path uses `NfcTech.Ndef`; toggled by `EXPO_PUBLIC_ENABLE_NFC_MOCK=true`; physical-card scan UX (Phase NFC-3) and telemetry (Phase NFC-4) still pending | `src/services/nfc/nfcManager.ts`, `src/services/nfc/tagParser.ts`, `src/hooks/useNfc.ts`, `app.json` |
+| **NFC** | Dev-build ready (Android) | `react-native-nfc-manager` 3.17.2 installed; `expo-dev-client` added; Android NDEF intent filter injected via custom config plugin (`plugins/withNfcIntentFilter.cjs`); real read path uses `NfcTech.Ndef`; toggled by `EXPO_PUBLIC_ENABLE_NFC_MOCK=true`; physical-card scan UX (Phase NFC-3) and telemetry (Phase NFC-4) still pending | `src/services/nfc/nfcManager.ts`, `src/services/nfc/tagParser.ts`, `src/hooks/useNfc.ts`, `plugins/withNfcIntentFilter.cjs`, `app.json` |
 | **Offline Queue** | Ready | Zustand persist + AsyncStorage; auto-drain on reconnect; offline banner via `useNetworkState` | `src/stores/useProgressStore.ts`, `src/hooks/useNetworkState.ts` |
 | **Telemetry** | Not Started | No scan event logging, no Sentry, no performance spans; `ErrorBoundary` catches errors but logs to console only | `src/components/ui/ErrorBoundary.tsx` |
 
@@ -79,17 +79,15 @@ Physical NTAG215 cards are in hand. The phases below move NFC from the working m
 
 **Tasks:**
 
-- [x] Add `expo-dev-client` to `dependencies` in `package.json` (resolved to `~55.0.32` for SDK 55).
-- [x] Add `"expo-dev-client"` to the `plugins` array in `app.json`, placed before `"expo-router"`.
-- [x] **Android — `app.json` `android` block:** add the NDEF intent filter via Expo's managed `intentFilters` field (no custom plugin required, no manual `AndroidManifest.xml` edit). The applied snippet is:
-  ```json
-  "intentFilters": [
-    {
-      "action": "android.nfc.action.NDEF_DISCOVERED",
-      "category": ["DEFAULT"],
-      "data": [{ "mimeType": "text/plain" }]
-    }
-  ]
+- [x] Add `expo-dev-client@^55.0.32` to `dependencies` in `package.json` (SDK 55-compatible).
+- [x] Add `"expo-dev-client"` to the `plugins` array in `app.json`, placed first.
+- [x] **Android NDEF intent filter via custom config plugin:** register `./plugins/withNfcIntentFilter.cjs` in the `plugins` array. The plugin uses `withAndroidManifest` from `@expo/config-plugins` to inject an `<intent-filter>` for `android.nfc.action.NDEF_DISCOVERED` on `MainActivity`. Expo's built-in `android.intentFilters` shortcut is **not** used here because it wrongly prepends `android.intent.action.` to the action name, which breaks the filter. The generated `AndroidManifest.xml` contains:
+  ```xml
+  <intent-filter>
+    <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <data android:mimeType="text/plain" />
+  </intent-filter>
   ```
   Note: `android.permission.NFC` is already declared in `app.json`.
 - [ ] **Deferred — `<uses-feature android:name="android.hardware.nfc" android:required="false" />`:** affects Play Store filtering only; not needed for the sideloaded demo APK. Add via a custom Expo config plugin alongside Phase NFC-2 or NFC-4 (whichever first needs a custom plugin).

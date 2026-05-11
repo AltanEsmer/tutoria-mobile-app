@@ -31,21 +31,14 @@
       "permissions": [
         "android.permission.NFC"
       ],
-      "predictiveBackGestureEnabled": false,
-      "intentFilters": [
-        {
-          "action": "android.nfc.action.NDEF_DISCOVERED",
-          "category": ["DEFAULT"],
-          "data": [{ "mimeType": "text/plain" }]
-        }
-      ]
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
       "expo-dev-client",
+      "expo-secure-store",
       "expo-router",
       "expo-web-browser",
       [
@@ -53,7 +46,8 @@
         {
           "microphonePermission": "Tutoria records your voice to check pronunciation during lessons"
         }
-      ]
+      ],
+      "./plugins/withNfcIntentFilter.cjs"
     ]
   }
 }
