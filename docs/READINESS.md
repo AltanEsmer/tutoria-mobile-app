@@ -1,8 +1,8 @@
 # Tutoria Mobile App — Readiness & Status
 
-**Date:** 2026-05-09
-**Branch:** `claude/pensive-galileo-zn5w4`
-**Trigger:** Physical NTAG215 cards received — NFC moving from mock to production.
+**Date:** 2026-05-10
+**Branch:** `claude/vigilant-perlman-242483`
+**Trigger:** Physical NTAG215 cards received — NFC moving from mock to production. Demo platform pivoted to Android (see §4).
 
 ---
 
@@ -16,7 +16,7 @@
 | **Module Session** | Partial | `startOrResumeModule`, `completeWord`, `abandonModule` wired; `completeSession` POST to backend is **missing** — session marked complete locally only | `src/services/api/modules.ts`, `src/stores/useLessonStore.ts` |
 | **Pronunciation** | Partial | Recording, upload, score display, retry, skip-after-2-failures all implemented; latency on slow networks is a known risk (20 s timeout, base64-encoded WAV in JSON body); timing logs and gzip just landed on this branch | `src/hooks/usePronunciation.ts`, `src/services/api/pronunciation.ts` |
 | **Audio Cache** | Ready | First 3 words prefetched on module load; `expo-file-system` local cache; cache-first playback with error icon fallback | `src/services/cache/audioCache.ts`, `src/hooks/useAudio.ts` |
-| **NFC** | Mock | `react-native-nfc-manager` 3.17.2 installed; real read path uses `NfcTech.Ndef`; toggled by `EXPO_PUBLIC_ENABLE_NFC_MOCK=true`; physical card UX, entitlements, and background dispatch not yet configured | `src/services/nfc/nfcManager.ts`, `src/services/nfc/tagParser.ts`, `src/hooks/useNfc.ts` |
+| **NFC** | Dev-build ready (Android) | `react-native-nfc-manager` 3.17.2 installed; `expo-dev-client` added; Android NDEF intent filter injected via custom config plugin (`plugins/withNfcIntentFilter.cjs`); real read path uses `NfcTech.Ndef`; toggled by `EXPO_PUBLIC_ENABLE_NFC_MOCK=true`; physical-card scan UX (Phase NFC-3) and telemetry (Phase NFC-4) still pending | `src/services/nfc/nfcManager.ts`, `src/services/nfc/tagParser.ts`, `src/hooks/useNfc.ts`, `plugins/withNfcIntentFilter.cjs`, `app.json` |
 | **Offline Queue** | Ready | Zustand persist + AsyncStorage; auto-drain on reconnect; offline banner via `useNetworkState` | `src/stores/useProgressStore.ts`, `src/hooks/useNetworkState.ts` |
 | **Telemetry** | Not Started | No scan event logging, no Sentry, no performance spans; `ErrorBoundary` catches errors but logs to console only | `src/components/ui/ErrorBoundary.tsx` |
 
@@ -42,9 +42,8 @@
 ## 3. Known Gaps / Risks
 
 - **Static bypass token** — `src/services/api/client.ts` injects `tutoria-integration-test-2026` as the `Authorization` header on every request. `setTokenGetter` is a no-op. Phase 4 (Auth JWT swap) must replace this before production. See the `TODO Phase 4` comments in `client.ts`.
-- **No `expo-dev-client` dependency** — `react-native-nfc-manager` includes native code and is incompatible with Expo Go. The package is listed in `dependencies` but `expo-dev-client` is not. A development build is required to exercise real NFC on physical devices. This is the blocker for Phase NFC-1.
-- **No Android NDEF intent filter** — `app.json` declares `android.permission.NFC` but no `<intent-filter>` for `android.nfc.action.NDEF_DISCOVERED`. Without it the app will not receive background tag dispatch on Android.
-- **iOS Core NFC entitlement missing** — `app.json` sets `NFCReaderUsageDescription` in `infoPlist` but does not configure `ios.entitlements`. The `com.apple.developer.nfc.readersession.formats` entitlement is required; without it Core NFC sessions fail silently on device.
+- **iOS NFC deferred** — `app.json` sets `NFCReaderUsageDescription` in `infoPlist` but no `ios.entitlements` block. The `com.apple.developer.nfc.readersession.formats` entitlement is required for Core NFC, and the entitlement is gated behind a paid Apple Developer Program membership ($99/yr). Demo pivoted to Android to avoid the cost; re-open this gap when iOS App Store submission is in scope.
+- **`<uses-feature android:name="android.hardware.nfc">` not declared** — affects Play Store filtering only (devices without NFC will still see the app). Not needed for the sideloaded demo APK; add via a custom config plugin alongside Phase NFC-2 or NFC-4.
 - **No `completeSession` backend call** — When all words in a module are finished the session is marked complete only in local Zustand state. `PUT /v1/modules/:moduleId/complete` (or equivalent) is never called. The progress dashboard will not reflect completed modules until this is fixed (noted in `docs/ROADMAP.md` §Phase 3).
 - **Cooldown not persisted** — The 12-hour module cooldown is tracked in memory inside `useLessonStore`. Killing the app resets it. The value must be persisted to AsyncStorage.
 - **Pronunciation upload latency** — The pronunciation check pipeline (Azure Speech → Gemini → Mistral fallback) operates on a 20-second hard timeout. On 3G or weaker connections, the base64-encoded WAV body (sent as JSON to `POST /v1/pronunciation/check`) can exhaust the window, leaving the user on a spinner. The current branch lands timing logs, a gzip Accept-Encoding header, a `POST_STOP_FLUSH_MS` constant trimmed from 100 ms to 60 ms, and a new `isUploading` flag for finer-grained UI states; a multipart upload path remains future work and requires a backend change.
@@ -60,25 +59,30 @@ Physical NTAG215 cards are in hand. The phases below move NFC from the working m
 
 > Cross-reference: `docs/NFC_GUIDE.md` covers NTAG215 specs, NDEF format, platform differences, tag validation, and security considerations. This section focuses on execution tasks, not concepts.
 
+### Demo platform decision (2026-05-10)
+
+**Demo target: Android (Samsung Galaxy A72).** iOS Core NFC requires a paid Apple Developer Program membership ($99/year) for the `com.apple.developer.nfc.readersession.formats` entitlement; without it, Core NFC sessions fail silently even on a sideloaded build. Android NFC has no equivalent gate — a debug APK sideloaded via `adb` works end-to-end, no developer account needed. The iOS code path is **not** removed from the codebase; only the demo build/test path is Android-only. iOS will be re-scoped when App Store submission is planned.
+
 ---
 
-### Phase NFC-1: Custom dev client + native config
+### Phase NFC-1: Custom dev client + Android native config
 
-**Goal:** Produce a development build that can exercise real NFC on physical Android and iOS devices.
+**Goal:** Produce a development build APK that can exercise real NFC on a physical Android device for the demo. (iOS deferred — see *Demo platform decision* above.)
 
 **Background:** `react-native-nfc-manager` links native code at build time. Expo Go strips native modules; a custom dev client is mandatory. `expo-dev-client` provides the scaffolding for this build type in the Expo managed workflow.
 
+**Demo prerequisites:**
+
+1. Samsung Galaxy A72 (or any NFC-capable Android 7+ device), with NFC enabled in Settings.
+2. Android Studio with the Android SDK and platform-tools (`adb`) installed; the device in USB-debugging mode and authorised.
+3. `EXPO_PUBLIC_ENABLE_NFC_MOCK` unset or set to `false` in `.env` so the real hardware path runs.
+
 **Tasks:**
 
-- [ ] Add `expo-dev-client` to `dependencies` in `package.json`:
-  ```
-  npm install expo-dev-client
-  ```
-- [ ] Add `expo-dev-client` to the `plugins` array in `app.json` (before `expo-router`).
-- [ ] Add `react-native-nfc-manager` to the `plugins` array in `app.json` if the package ships an Expo config plugin (check its README); otherwise the manifest changes below must be applied via a custom plugin or via `npx expo prebuild`.
-- [ ] **Android — `app.json` `android` block:** Add the NDEF intent filter and hardware feature declaration. In the managed workflow this requires a custom Expo config plugin or `npx expo prebuild` to emit a bare `android/` directory. The required `AndroidManifest.xml` additions are:
+- [x] Add `expo-dev-client@^55.0.32` to `dependencies` in `package.json` (SDK 55-compatible).
+- [x] Add `"expo-dev-client"` to the `plugins` array in `app.json`, placed first.
+- [x] **Android NDEF intent filter via custom config plugin:** register `./plugins/withNfcIntentFilter.cjs` in the `plugins` array. The plugin uses `withAndroidManifest` from `@expo/config-plugins` to inject an `<intent-filter>` for `android.nfc.action.NDEF_DISCOVERED` on `MainActivity`. Expo's built-in `android.intentFilters` shortcut is **not** used here because it wrongly prepends `android.intent.action.` to the action name, which breaks the filter. The generated `AndroidManifest.xml` contains:
   ```xml
-  <uses-feature android:name="android.hardware.nfc" android:required="false" />
   <intent-filter>
     <action android:name="android.nfc.action.NDEF_DISCOVERED" />
     <category android:name="android.intent.category.DEFAULT" />
@@ -86,28 +90,25 @@ Physical NTAG215 cards are in hand. The phases below move NFC from the working m
   </intent-filter>
   ```
   Note: `android.permission.NFC` is already declared in `app.json`.
-  Note: use `android:required="false"` so the app remains installable on devices without NFC hardware.
-- [ ] **iOS — `app.json` `ios` block:** Add the Core NFC entitlement:
-  ```json
-  "entitlements": {
-    "com.apple.developer.nfc.readersession.formats": ["NDEF"]
-  }
-  ```
-  `NFCReaderUsageDescription` is already present in `ios.infoPlist` — no change needed there.
-- [ ] Run `npx expo prebuild --clean` (or `eas build --profile development`) to validate the manifest output.
-- [ ] Confirm `npm run lint && npm run test` still pass after the dependency addition.
+- [ ] **Deferred — `<uses-feature android:name="android.hardware.nfc" android:required="false" />`:** affects Play Store filtering only; not needed for the sideloaded demo APK. Add via a custom Expo config plugin alongside Phase NFC-2 or NFC-4 (whichever first needs a custom plugin).
+- [ ] **Deferred — iOS Core NFC entitlement:** requires the paid Apple Developer Program ($99/yr); not in scope for the Android demo.
+- [ ] Run `npx expo run:android --device` — Expo prebuilds the `android/` directory implicitly on the first run, builds the dev client APK with `react-native-nfc-manager` linked, and installs to the connected Galaxy A72 via `adb`.
+- [x] Confirm `npm run lint && npm run test` still pass after the dependency addition.
 
 **Acceptance criteria:**
-- `npx expo run:android` produces an APK that installs and launches on a physical Android device with NFC hardware.
-- `npx expo run:ios` produces an IPA that installs on a physical iPhone 7+.
-- The Home screen shows the `NfcRing` component and no "NFC not supported" banner on both devices.
+- `npx expo run:android --device` produces a dev client APK that installs and launches on the Galaxy A72.
+- The Home screen shows the `NfcRing` component and no "NFC not supported" banner.
 - `NfcManager.isSupported()` returns `true` and `NfcManager.isEnabled()` returns `true` when NFC is on.
+- The generated `android/app/src/main/AndroidManifest.xml` (after first `expo run:android`) contains the NDEF intent filter inside the main activity.
 
 **Test plan:**
-1. Build dev client for Android; install on device; open app; confirm NFC ring is visible and no error state appears.
-2. Build dev client for iOS; install on device; open app; confirm same.
-3. Disable NFC in Android device settings; open app; confirm "NFC disabled" banner or manual input fallback appears.
-4. Run `npm run test` — all existing unit tests must pass.
+1. Build dev client: `npx expo run:android --device`; install on the Galaxy A72; open app; confirm NFC ring is visible and no error state appears.
+2. Disable NFC in Android Settings; reopen app; confirm "NFC disabled" banner or manual lesson-code fallback appears.
+3. Re-enable NFC; confirm the scan UI returns to its idle state.
+4. Run `npm run lint && npm run test` — all existing unit tests must pass.
+
+**Notes for follow-up:**
+- The cold-tap intent filter is declared here, but the *handler* that reads intent extras and routes to a lesson on cold launch is Phase NFC-5 work. With this PR, foreground scans work end-to-end; cold-tap will launch the app to its default screen until NFC-5 lands the intent extractor.
 
 ---
 
