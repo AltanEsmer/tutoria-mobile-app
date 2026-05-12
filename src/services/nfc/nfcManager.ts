@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
 import type { NfcTagPayload } from '../../utils/types';
 import { parseNdefPayload } from './tagParser';
@@ -15,7 +16,8 @@ export async function initNfc(): Promise<boolean> {
       await NfcManager.start();
     }
     return supported;
-  } catch {
+  } catch (err) {
+    console.warn(`[NFC/${Platform.OS}] initNfc failed:`, err instanceof Error ? err.message : err);
     return false;
   }
 }
@@ -27,13 +29,20 @@ export async function isNfcEnabled(): Promise<boolean> {
   if (NFC_MOCK) return true;
   try {
     return await NfcManager.isEnabled();
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[NFC/${Platform.OS}] isNfcEnabled failed:`,
+      err instanceof Error ? err.message : err,
+    );
     return false;
   }
 }
 
 /**
- * Read an NDEF tag. Returns parsed tag payload or null on failure.
+ * Read an NDEF tag. Returns parsed tag payload or null when no readable tag is present.
+ * Throws on real errors (NFC disabled, permission denied, request cancelled) so the
+ * caller can surface a message to the user — previously every failure was swallowed
+ * and Android users saw the scan button silently do nothing.
  */
 export async function readTag(): Promise<NfcTagPayload | null> {
   if (NFC_MOCK) {
@@ -61,8 +70,9 @@ export async function readTag(): Promise<NfcTagPayload | null> {
     const tagId = tag.id || '';
 
     return parseNdefPayload(payload, tagId);
-  } catch {
-    return null;
+  } catch (err) {
+    console.warn(`[NFC/${Platform.OS}] readTag failed:`, err instanceof Error ? err.message : err);
+    throw err instanceof Error ? err : new Error('NFC scan failed');
   } finally {
     NfcManager.cancelTechnologyRequest().catch(() => {});
   }

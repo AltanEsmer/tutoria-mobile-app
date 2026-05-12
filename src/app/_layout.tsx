@@ -16,12 +16,17 @@ import { useProgressStore } from '@/stores/useProgressStore';
 function RootLayoutInner() {
   useNetworkState();
 
-  // Boot-time audio session: play through speaker even when ringer is muted (iOS).
+  // Boot-time audio session: play through the loudspeaker on both platforms.
+  //   iOS: playsInSilentMode keeps playback audible when the ringer is muted.
+  //   Android: shouldRouteThroughEarpiece=false forces the speaker route — without it,
+  //   AudioManager may default to the earpiece on some devices after recording, leaving
+  //   pronunciation playback inaudible.
   useEffect(() => {
     setAudioModeAsync({
       playsInSilentMode: true,
       interruptionMode: 'duckOthers',
       shouldPlayInBackground: false,
+      shouldRouteThroughEarpiece: false,
     }).catch(() => {});
   }, []);
 
