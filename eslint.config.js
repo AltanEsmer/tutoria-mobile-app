@@ -5,8 +5,6 @@ import eslintPluginReactHooks from 'eslint-plugin-react-hooks';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import eslintConfigExpo from 'eslint-config-expo';
 import importPlugin from 'eslint-plugin-import';
-import reactNativePlugin from 'eslint-plugin-react-native';
-
 export default [
   {
     ignores: ['node_modules/**', 'dist/**', '.expo/**', 'coverage/**', '**/*.json', '__mocks__/**', '**/__tests__/**/*.js'],
@@ -28,7 +26,6 @@ export default [
       react: eslintPluginReact,
       'react-hooks': eslintPluginReactHooks,
       import: importPlugin,
-      'react-native': reactNativePlugin,
     },
     rules: {
       ...eslintConfigExpo.rules,
@@ -51,10 +48,6 @@ export default [
           'newlines-between': 'never',
         },
       ],
-      'react-native/no-unused-styles': 'off',
-      'react-native/split-platform-components': 'off',
-      'react-native/no-inline-styles': 'off',
-      'react-native/no-color-literals': 'off',
     },
   },
 ];
