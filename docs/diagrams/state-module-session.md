@@ -50,27 +50,27 @@ stateDiagram-v2
     NotEligible --> Idle: Dismiss
     InCooldown --> Idle: Dismiss
 
-    StartingSession --> Active: POST /modules/:id<br/>Session created/resumed
-    StartingSession --> Error: API error
+    StartingSession --> Active : session created or resumed
+    StartingSession --> Error : API error
 
     state Active {
         [*] --> LoadingWord
-        LoadingWord --> DisplayingWord: Word + audio loaded
-        DisplayingWord --> PlayingAudio: Auto-play / replay
-        PlayingAudio --> AwaitingInput: Audio complete
-        AwaitingInput --> Recording: User starts recording
-        Recording --> CheckingPronunciation: User stops recording
-        CheckingPronunciation --> ShowingResult: API response
-        ShowingResult --> SavingProgress: Animate feedback
-        SavingProgress --> LoadingWord: More words remain
-        SavingProgress --> [*]: All words complete
+        LoadingWord --> DisplayingWord : word and audio loaded
+        DisplayingWord --> PlayingAudio : auto-play or replay
+        PlayingAudio --> AwaitingInput : audio complete
+        AwaitingInput --> Recording : user starts recording
+        Recording --> CheckingPronunciation : user stops recording
+        CheckingPronunciation --> ShowingResult : API response
+        ShowingResult --> SavingProgress : animate feedback
+        SavingProgress --> LoadingWord : more words remain
+        SavingProgress --> [*] : all words complete
     }
 
-    Active --> ModuleComplete: All words completed<br/>isModuleComplete = true
-    Active --> Abandoned: User quits<br/>DELETE /modules/:id
-    Active --> Error: Network / timeout
+    Active --> ModuleComplete : all words done
+    Active --> Abandoned : user quits mid-session
+    Active --> Error : network or timeout
 
-    ModuleComplete --> Idle: Return to home
-    Abandoned --> Idle: Return to home<br/>(attempt NOT incremented)
-    Error --> Idle: Retry / dismiss
+    ModuleComplete --> Idle : return to home
+    Abandoned --> Idle : return to home — attempt not counted
+    Error --> Idle : retry or dismiss
 ```

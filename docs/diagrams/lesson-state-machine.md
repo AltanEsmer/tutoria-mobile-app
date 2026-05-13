@@ -11,32 +11,32 @@ encoded as an implicit state machine across `useLessonStore` and component-local
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Loading: route mounted
+    [*] --> Loading : route mounted
 
-    Loading --> NoSession: GET /v1/modules/:id returns canAttempt false
-    Loading --> Eligible: canAttempt true
+    Loading --> NoSession : canAttempt false
+    Loading --> Eligible : canAttempt true
 
-    Eligible --> Starting: POST /v1/modules/:id
-    Starting --> Active: SessionData received
+    Eligible --> Starting : start session
+    Starting --> Active : SessionData received
 
-    Active --> WordIdle: word loaded
-    WordIdle --> Recording: tap record
-    Recording --> Grading: stop record
-    Grading --> WordCorrect: overallIsCorrect true
-    Grading --> WordWrong: overallIsCorrect false
-    Grading --> WordError: errorType present
-    Grading --> Cooldown: 429 with retryAfter
+    Active --> WordIdle : word loaded
+    WordIdle --> Recording : tap record
+    Recording --> Grading : stop record
+    Grading --> WordCorrect : overallIsCorrect true
+    Grading --> WordWrong : overallIsCorrect false
+    Grading --> WordError : errorType present
+    Grading --> Cooldown : 429 retryAfter
 
-    WordCorrect --> Advance: animation done
-    WordWrong --> WordIdle: shake done, attempts++
-    WordError --> WordIdle: banner dismissed
-    Cooldown --> WordIdle: timer elapsed
+    WordCorrect --> Advance : animation done
+    WordWrong --> WordIdle : shake done
+    WordError --> WordIdle : banner dismissed
+    Cooldown --> WordIdle : timer elapsed
 
-    Advance --> WordIdle: next word
-    Advance --> Complete: all words done
+    Advance --> WordIdle : next word
+    Advance --> Complete : all words done
 
-    Complete --> [*]: navigate to results
-    NoSession --> [*]: navigate home with toast
+    Complete --> [*] : navigate to results
+    NoSession --> [*] : navigate home
 ```
 
 ---
@@ -45,18 +45,18 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TD
-    Mount([Lesson screen mount]) --> Params[useLocalSearchParams<br/>moduleId]
-    Params --> Eligibility[GET /v1/modules/:id]
+    Mount([Lesson screen mount]) --> Params[useLocalSearchParams moduleId]
+    Params --> Eligibility[GET eligibility check]
     Eligibility --> Eligible{canAttempt?}
-    Eligible -- false --> Locked[Show "come back later"]
-    Eligible -- true --> Start[POST /v1/modules/:id]
+    Eligible -- false --> Locked[Show lesson-unavailable card]
+    Eligible -- true --> Start[POST start session]
     Start --> Hydrate[useLessonStore.hydrateFromSession]
 
-    Hydrate --> Find[Find first word not in<br/>completedWords]
+    Hydrate --> Find[Find first word not in completedWords]
     Find --> Pos{position > 0?}
     Pos -- yes --> Resume[Resume at position]
-    Pos -- no --> Edge{any words in<br/>completedWords?}
-    Edge -- yes --> Recover[Override position<br/>to first uncompleted index]
+    Pos -- no --> Edge{completedWords non-empty?}
+    Edge -- yes --> Recover[Override to first uncompleted index]
     Edge -- no --> Begin[Begin at index 0]
 
     Resume & Recover & Begin --> Render[Render WordCard]
@@ -77,33 +77,33 @@ sequenceDiagram
     participant U as User
     participant LS as Lesson Screen
     participant UP as usePronunciation
-    participant API as /v1/pronunciation/check
+    participant API as Tutoria API
     participant LSt as useLessonStore
 
     LS->>U: show WordCard (display_text, ipa)
-    U->>LS: tap "Play audio"
+    U->>LS: tap Play audio
     LS->>LS: useAudio.play(audioPath)
 
-    U->>LS: tap "Record"
+    U->>LS: tap Record
     LS->>UP: startRecording
-    U->>LS: tap "Stop"
+    U->>LS: tap Stop
     LS->>UP: stopAndCheck
 
     alt silence gate did not fire
-        UP-->>LS: null (no submission)
-        LS->>U: hint "Speak louder"
+        UP-->>LS: null — no submission
+        LS->>U: hint — speak louder
     else valid recording
-        UP->>API: POST audio + text + ipa
+        UP->>API: POST pronunciation check
         API-->>UP: response
         UP-->>LS: PronunciationCheckResponse
 
         alt errorType present
-            LS->>U: informational banner
-        else overallIsCorrect
+            LS->>U: informational banner — no penalty
+        else overallIsCorrect true
             LS->>LSt: completeWord
-            LSt->>API: POST /v1/modules/:id/word
+            LSt->>API: POST complete word
             LS->>U: success animation + haptic
-        else wrong
+        else overallIsCorrect false
             LS->>LSt: incrementAttempt
             LS->>U: shake + retry CTA
         end
