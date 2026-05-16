@@ -58,7 +58,14 @@ export async function readTag(): Promise<NfcTagPayload | null> {
   }
 
   try {
-    await NfcManager.requestTechnology(NfcTech.Ndef);
+    if (Platform.OS === 'ios') {
+      await NfcManager.requestTechnology(NfcTech.Ndef, {
+        alertMessage: 'Hold your Tutoria card near the top of your iPhone',
+      });
+    } else {
+      await NfcManager.requestTechnology(NfcTech.Ndef);
+    }
+
     const tag = await NfcManager.getTag();
 
     if (!tag || !tag.ndefMessage || tag.ndefMessage.length === 0) {
@@ -69,7 +76,23 @@ export async function readTag(): Promise<NfcTagPayload | null> {
     const payload = Ndef.text.decodePayload(new Uint8Array(record.payload));
     const tagId = tag.id || '';
 
-    return parseNdefPayload(payload, tagId);
+    const parsed = parseNdefPayload(payload, tagId);
+
+    if (parsed.isValid && Platform.OS === 'ios') {
+      try {
+        await NfcManager.setAlertMessageIOS('Card detected!');
+      } catch {
+        // swallow — UX polish must not break the real return
+      }
+    } else if (!parsed.isValid && Platform.OS === 'ios') {
+      try {
+        await NfcManager.invalidateSessionWithErrorIOS('This is not a Tutoria card');
+      } catch {
+        // swallow — UX polish must not break the real return
+      }
+    }
+
+    return parsed;
   } catch (err) {
     console.warn(`[NFC/${Platform.OS}] readTag failed:`, err instanceof Error ? err.message : err);
     throw err instanceof Error ? err : new Error('NFC scan failed');
