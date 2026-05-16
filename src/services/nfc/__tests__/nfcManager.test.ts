@@ -84,10 +84,7 @@ describe('readTag — Android', () => {
     await readTag();
 
     expect(NfcManager.requestTechnology).toHaveBeenCalledWith(NfcTech.Ndef);
-    expect(NfcManager.requestTechnology).not.toHaveBeenCalledWith(
-      NfcTech.Ndef,
-      expect.any(Object),
-    );
+    expect(NfcManager.requestTechnology).not.toHaveBeenCalledWith(NfcTech.Ndef, expect.any(Object));
     expect(NfcManager.setAlertMessageIOS).not.toHaveBeenCalled();
     expect(NfcManager.invalidateSessionWithErrorIOS).not.toHaveBeenCalled();
   });

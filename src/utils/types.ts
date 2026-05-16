@@ -191,13 +191,26 @@ export interface NfcTagPayload {
   rawData?: string;
 }
 
-export interface NfcScanState {
+/**
+ * Snapshot of the NFC store's pre-`scanState` boolean/string fields.
+ * Kept as a separate type for any external consumer that wants the legacy shape;
+ * new code should consume the `NfcScanState` union plus individual store fields.
+ */
+export interface NfcScanSnapshot {
   isScanning: boolean;
   isSupported: boolean;
   isEnabled: boolean;
   lastTag: NfcTagPayload | null;
   error: string | null;
 }
+
+export type NfcScanState =
+  | 'idle'
+  | 'listening'
+  | 'found'
+  | 'parse_error'
+  | 'not_tutoria_card'
+  | 'retry';
 
 // ─── Offline & Cache ────────────────────────────────────────────
 
