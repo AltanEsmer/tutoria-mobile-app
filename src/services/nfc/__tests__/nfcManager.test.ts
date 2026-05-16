@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { NfcManager, NfcTech, Ndef } from 'react-native-nfc-manager';
+import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
 import { readTag } from '../nfcManager';
 
 // ---------------------------------------------------------------------------
