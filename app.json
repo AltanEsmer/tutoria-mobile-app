@@ -18,6 +18,9 @@
       "infoPlist": {
         "NFCReaderUsageDescription": "Tutoria uses NFC to read learning cards and start phonics lessons",
         "NSMicrophoneUsageDescription": "Tutoria records your voice to check pronunciation during lessons"
+      },
+      "entitlements": {
+        "com.apple.developer.nfc.readersession.formats": ["NDEF"]
       }
     },
     "android": {
