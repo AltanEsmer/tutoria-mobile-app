@@ -16,6 +16,7 @@ describe('useNfcStore', () => {
       isEnabled: false,
       lastTag: null,
       error: null,
+      scanState: 'idle',
     });
   });
 
@@ -26,6 +27,7 @@ describe('useNfcStore', () => {
     expect(state.isEnabled).toBe(false);
     expect(state.lastTag).toBeNull();
     expect(state.error).toBeNull();
+    expect(state.scanState).toBe('idle');
   });
 
   it('setScanning transitions idle → scanning', () => {
@@ -81,5 +83,40 @@ describe('useNfcStore', () => {
     expect(state.isScanning).toBe(false);
     expect(state.error).toBe('Tag read failed');
     expect(state.lastTag).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scanState field
+// ---------------------------------------------------------------------------
+
+describe('useNfcStore — scanState', () => {
+  beforeEach(() => {
+    useNfcStore.setState({
+      isScanning: false,
+      isSupported: false,
+      isEnabled: false,
+      lastTag: null,
+      error: null,
+      scanState: 'idle',
+    });
+  });
+
+  it('initial scanState is idle', () => {
+    expect(useNfcStore.getState().scanState).toBe('idle');
+  });
+
+  it('setScanState(listening) updates only scanState and leaves other fields unchanged', () => {
+    const before = useNfcStore.getState();
+    useNfcStore.getState().setScanState('listening');
+    const after = useNfcStore.getState();
+
+    expect(after.scanState).toBe('listening');
+    // All other fields must be unaffected
+    expect(after.isScanning).toBe(before.isScanning);
+    expect(after.isSupported).toBe(before.isSupported);
+    expect(after.isEnabled).toBe(before.isEnabled);
+    expect(after.lastTag).toBe(before.lastTag);
+    expect(after.error).toBe(before.error);
   });
 });

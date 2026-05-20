@@ -8,6 +8,8 @@ const NfcManager = {
   isEnabled: jest.fn().mockResolvedValue(true),
   registerTagEvent: jest.fn().mockResolvedValue(undefined),
   unregisterTagEvent: jest.fn().mockResolvedValue(undefined),
+  setAlertMessageIOS: jest.fn().mockResolvedValue(undefined),
+  invalidateSessionWithErrorIOS: jest.fn().mockResolvedValue(undefined),
 };
 
 const NfcTech = { Ndef: 'Ndef' };
@@ -20,4 +22,4 @@ const Ndef = {
   uri: { decodePayload: jest.fn() },
 };
 
-module.exports = { default: NfcManager, NfcManager, NfcTech, Ndef };
+module.exports = { __esModule: true, default: NfcManager, NfcManager, NfcTech, Ndef };

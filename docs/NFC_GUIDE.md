@@ -192,6 +192,9 @@ sequenceDiagram
 | No NDEF message        | Tag is blank or not NDEF-formatted              | "Unrecognized card" message              |
 | Wrong prefix           | Payload does not start with `tutoria:`          | "This card is not a Tutoria card"        |
 | Empty moduleId         | Payload is `tutoria:` with nothing after it     | "Invalid card data"                      |
+| User dismissed sheet (iOS) | User tapped Cancel on the Core NFC modal   | Return to idle, no error shown           |
+| Scan timeout (iOS 60 s)    | No tag detected within Core NFC's 60-second session window | Show retry prompt           |
+| Session invalidated with error (iOS) | App called `invalidateSessionWithErrorIOS` after detecting a non-Tutoria payload | Sheet already displayed error; return to idle |
 
 ### User feedback
 

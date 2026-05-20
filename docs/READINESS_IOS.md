@@ -71,7 +71,7 @@ These phases mirror `docs/READINESS.md` §4 but cover only the iOS-specific work
 
 **Tasks:**
 
-- [ ] Add the `ios.entitlements` block to `app.json`:
+- [x] Add the `ios.entitlements` block to `app.json`:
   ```json
   "ios": {
     "supportsTablet": true,
@@ -85,10 +85,10 @@ These phases mirror `docs/READINESS.md` §4 but cover only the iOS-specific work
     }
   }
   ```
-- [ ] Run `npx expo prebuild --platform ios` to regenerate the `ios/` directory with the entitlement applied; verify `ios/Tutoria/Tutoria.entitlements` contains the `com.apple.developer.nfc.readersession.formats` array with `NDEF`.
-- [ ] Run `npx expo run:ios --device` to build, sign, and install the dev client on the test iPhone. Confirm the install completes without provisioning errors.
-- [ ] On first launch, accept the NFC permission prompt; confirm the Tutoria-specific `NFCReaderUsageDescription` text appears.
-- [ ] Confirm `npm run lint && npm run test` still pass.
+- [ ] Run `npx expo prebuild --platform ios` to regenerate the `ios/` directory with the entitlement applied; verify `ios/Tutoria/Tutoria.entitlements` contains the `com.apple.developer.nfc.readersession.formats` array with `NDEF`. _(hardware — pending Apple Developer account)_
+- [ ] Run `npx expo run:ios --device` to build, sign, and install the dev client on the test iPhone. Confirm the install completes without provisioning errors. _(hardware — pending Apple Developer account)_
+- [ ] On first launch, accept the NFC permission prompt; confirm the Tutoria-specific `NFCReaderUsageDescription` text appears. _(hardware — pending Apple Developer account)_
+- [x] Confirm `npm run lint && npm run test` still pass.
 
 **Acceptance criteria:**
 
@@ -115,18 +115,20 @@ These phases mirror `docs/READINESS.md` §4 but cover only the iOS-specific work
 
 **Tasks:**
 
-- [ ] Update `readTag()` in `src/services/nfc/nfcManager.ts` to pass an `alertMessage` to `requestTechnology` on iOS:
+- [x] Update `readTag()` in `src/services/nfc/nfcManager.ts` to pass an `alertMessage` to `requestTechnology` on iOS. Implemented with an explicit `Platform.OS === 'ios'` branch so Android stays single-arg (byte-for-byte identical to before this PR), rather than the `undefined` option pattern shown below; both achieve the same end:
   ```ts
-  await NfcManager.requestTechnology(NfcTech.Ndef, {
-    alertMessage:
-      Platform.OS === 'ios' ? 'Hold your Tutoria card near the top of your iPhone' : undefined,
-  });
+  if (Platform.OS === 'ios') {
+    await NfcManager.requestTechnology(NfcTech.Ndef, {
+      alertMessage: 'Hold your Tutoria card near the top of your iPhone',
+    });
+  } else {
+    await NfcManager.requestTechnology(NfcTech.Ndef);
+  }
   ```
-  (The `Platform.OS` guard prevents the unused option from being shipped to Android.)
-- [ ] On a successful parse, call `NfcManager.setAlertMessageIOS('Card detected!')` before `cancelTechnologyRequest()` so the sheet closes with a confirmation.
-- [ ] On a parse failure (wrong prefix or empty `moduleId`), call `NfcManager.invalidateSessionWithErrorIOS('This is not a Tutoria card')` so the sheet shows the error and auto-dismisses, instead of silently closing.
-- [ ] Wrap the new iOS calls so they are no-ops on Android (they already are at the library level, but guard explicitly for clarity).
-- [ ] Add unit tests for the `Platform.OS === 'ios'` branches in `src/services/nfc/__tests__/nfcManager.test.ts` (mock `Platform` and the `setAlertMessageIOS`/`invalidateSessionWithErrorIOS` calls).
+- [x] On a successful parse, call `NfcManager.setAlertMessageIOS('Card detected!')` before `cancelTechnologyRequest()` so the sheet closes with a confirmation.
+- [x] On a parse failure (wrong prefix or empty `moduleId`), call `NfcManager.invalidateSessionWithErrorIOS('This is not a Tutoria card')` so the sheet shows the error and auto-dismisses, instead of silently closing.
+- [x] Wrap the new iOS calls so they are no-ops on Android (Platform-guarded **and** try/catch-wrapped so UX polish cannot break the parsed return).
+- [x] Add unit tests for the `Platform.OS === 'ios'` branches in `src/services/nfc/__tests__/nfcManager.test.ts` — four cases cover iOS reqTech args, Android reqTech args, iOS valid → `setAlertMessageIOS`, iOS invalid → `invalidateSessionWithErrorIOS`.
 
 **Acceptance criteria:**
 
@@ -150,12 +152,14 @@ These phases mirror `docs/READINESS.md` §4 but cover only the iOS-specific work
 
 **Tasks:**
 
-- [ ] In `useNfc.ts`, map `react-native-nfc-manager`'s iOS error codes to the appropriate `scanState`:
+- [x] In `useNfc.ts`, map `react-native-nfc-manager`'s iOS error codes to the appropriate `scanState`:
   - User dismissed the Core NFC sheet manually → `scanState: 'idle'` (no error UI).
-  - Session timed out (60 s without a tag) → `scanState: 'parse_error'` with "Tap your card to try again" copy.
-  - Reader unavailable / device locked mid-scan → `scanState: 'parse_error'`.
-- [ ] Document the iOS error codes encountered in `docs/NFC_GUIDE.md` §6 (append to the error table; do not duplicate Android entries).
-- [ ] Add unit tests in `src/hooks/__tests__/useNfc.test.ts` covering each iOS error → state transition (mock the thrown error from `readTag`).
+  - Session timed out (60 s without a tag) → `scanState: 'parse_error'` with "Scan timed out — try again" copy.
+  - Reader unavailable / device locked mid-scan / other generic failures → `scanState: 'parse_error'`.
+  - App-initiated session invalidation (from Phase iOS-2's `invalidateSessionWithErrorIOS`) → `scanState: 'not_tutoria_card'`.
+  - Heuristic matches both `err.message` and `err.constructor.name` (lowercased) — the constructor check covers the library's typed `UserCancel` / `Timeout` / `SessionInvalidated` errors that often carry an empty message.
+- [x] Document the iOS error codes encountered in `docs/NFC_GUIDE.md` §6 (append to the error table; do not duplicate Android entries).
+- [x] Add unit tests in `src/hooks/__tests__/useNfc.test.ts` covering each iOS error → state transition (mock the thrown error from `readTag`). Nine cases cover idle / listening / found / parse_error / not_tutoria_card transitions plus re-scan after parse_error.
 
 **Acceptance criteria:**
 
