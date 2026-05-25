@@ -6,6 +6,13 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api-dev.
 
 export const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || '';
 
+// Clerk is active only when a real publishable key (matching the backend's Clerk
+// instance) is configured. With no key — or the placeholder — the app falls back
+// to the static bypass token so dev/CI keep working until Tutoria provides one.
+export const CLERK_ENABLED =
+  /^pk_(test|live)_/.test(CLERK_PUBLISHABLE_KEY) &&
+  !CLERK_PUBLISHABLE_KEY.includes('your_key_here');
+
 // NFC
 export const NFC_TAG_PREFIX = 'tutoria:';
 export const SUPPORTED_TAG_TECH = 'Ndef';

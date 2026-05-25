@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { getAudioProxyUrl } from '../api/audio';
-import { getAuthHeader } from '../api/client';
+import { getAuthHeaderAsync } from '../api/client';
 
 function getAudioCacheDir(): string {
   return `${FileSystem.cacheDirectory}audio/`;
@@ -37,7 +37,7 @@ export async function downloadAndCacheAudio(r2Path: string): Promise<string> {
   const localUri = `${getAudioCacheDir()}${filename}`;
   const downloadUrl = getAudioProxyUrl(r2Path);
   const result = await FileSystem.downloadAsync(downloadUrl, localUri, {
-    headers: { Authorization: getAuthHeader() },
+    headers: { Authorization: await getAuthHeaderAsync() },
   });
   console.log('[AudioCache] downloadAsync status:', result.status, 'localUri:', result.uri);
   if (result.status !== 200) {
@@ -59,7 +59,7 @@ export async function prefetchAudioFiles(r2Paths: string[]): Promise<void> {
       const downloadUrl = getAudioProxyUrl(r2Path);
 
       await FileSystem.downloadAsync(downloadUrl, localUri, {
-        headers: { Authorization: getAuthHeader() },
+        headers: { Authorization: await getAuthHeaderAsync() },
       });
     }),
   );
