@@ -14,26 +14,23 @@ interface ScoreBadgeProps {
   isPassing?: boolean;
 }
 
-function getBadgeColor(score: number, isPassing?: boolean): string {
-  if (isPassing === true) return '#4CAF50';
-  if (isPassing === false) return '#F44336';
-  if (score >= 80) return '#4CAF50';
-  if (score >= 50) return '#FF9800';
-  return '#F44336';
+function isPass(score: number, isPassing?: boolean): boolean {
+  if (isPassing !== undefined) return isPassing;
+  return score >= 80;
 }
 
 export function ScoreBadge({ score, size = 80, isPassing }: ScoreBadgeProps) {
-  const color = getBadgeColor(score, isPassing);
+  const passed = isPass(score, isPassing);
   const circleStyle = {
     width: size,
     height: size,
     borderRadius: size / 2,
-    backgroundColor: color,
+    backgroundColor: passed ? '#4CAF50' : '#F44336',
   };
 
   return (
     <View style={[styles.circle, circleStyle]}>
-      <Text style={[styles.scoreText, { fontSize: size * 0.28 }]}>{Math.round(score)}%</Text>
+      <Text style={[styles.scoreText, { fontSize: size * 0.5 }]}>{passed ? '✓' : '✗'}</Text>
     </View>
   );
 }

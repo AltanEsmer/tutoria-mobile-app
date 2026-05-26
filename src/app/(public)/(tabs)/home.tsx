@@ -9,7 +9,6 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { MissionCard } from '@/components/ui/MissionCard';
 import { useNfc } from '@/hooks/useNfc';
 import { getMissions } from '@/services/api';
-import { cleanupNfc } from '@/services/nfc';
 import { useLessonStore } from '@/stores/useLessonStore';
 import { useProfileStore } from '@/stores/useProfileStore';
 import type { Mission } from '@/utils/types';
@@ -86,15 +85,6 @@ function HomeScreenContent() {
   const handleManualSubmit = useCallback((moduleId: string) => {
     router.push(`/lesson/${moduleId}`);
   }, []);
-
-  // Stop any open NFC session when navigating away (tabs stay mounted)
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        cleanupNfc();
-      };
-    }, []),
-  );
 
   const greeting = getGreeting();
 

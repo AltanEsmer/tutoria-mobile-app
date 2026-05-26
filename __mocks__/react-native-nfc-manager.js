@@ -10,9 +10,10 @@ const NfcManager = {
   unregisterTagEvent: jest.fn().mockResolvedValue(undefined),
   setAlertMessageIOS: jest.fn().mockResolvedValue(undefined),
   invalidateSessionWithErrorIOS: jest.fn().mockResolvedValue(undefined),
+  sendMifareCommandIOS: jest.fn().mockResolvedValue([]),
 };
 
-const NfcTech = { Ndef: 'Ndef' };
+const NfcTech = { Ndef: 'Ndef', MifareIOS: 'mifare' };
 
 const Ndef = {
   text: {

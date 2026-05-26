@@ -3,8 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useLessonStore } from '@/stores/useLessonStore';
-import { getDisplayScore, isPronunciationPassing } from '@/utils/pronunciation';
-import type { PronunciationCheckResponse, WordData } from '@/utils/types';
+import type { WordData } from '@/utils/types';
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -90,16 +89,11 @@ interface WordRowProps {
   word: WordData;
   passed: boolean;
   failed: boolean;
-  result?: PronunciationCheckResponse | null;
 }
 
-function WordRow({ word, passed, failed, result }: WordRowProps) {
+function WordRow({ word, passed, failed }: WordRowProps) {
   const statusIcon = passed ? '✅' : failed ? '❌' : '⏭️';
-  // Use getDisplayScore (Azure wordAccuracyScore on misses) so failed rows
-  // don't display the inflated `similarity` from the Two-Sided judge.
-  const scoreLabel = result
-    ? `${Math.round(getDisplayScore(result, isPronunciationPassing(result)))}%`
-    : '–';
+  const scoreLabel = passed ? '✓' : failed ? '✗' : '–';
 
   return (
     <View style={styles.wordRow}>
@@ -130,7 +124,6 @@ export default function ResultsScreen() {
     currentSession,
     completedWords,
     failedWords,
-    pronunciationResults,
     sessionScore,
     resetSession,
     isModuleOnCooldown,
@@ -141,7 +134,6 @@ export default function ResultsScreen() {
   const sessionRef = useRef(currentSession);
   const completedRef = useRef(completedWords);
   const failedRef = useRef(failedWords);
-  const resultsRef = useRef(pronunciationResults);
   const scoreRef = useRef(sessionScore);
 
   const [session, setSession] = useState(currentSession);
@@ -181,6 +173,7 @@ export default function ResultsScreen() {
 
   const total = session.totalWords || session.wordData.length;
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+  const passed = pct >= 80;
 
   const encouragement =
     pct >= 80 ? 'Amazing! 🌟' : pct >= 50 ? 'Good effort! 💪' : 'Keep practicing! 📚';
@@ -213,9 +206,12 @@ export default function ResultsScreen() {
           {encouragement}
         </Text>
 
-        <View testID="results-score-circle" style={styles.scoreCircle}>
+        <View
+          testID="results-score-circle"
+          style={[styles.scoreCircle, passed ? styles.scoreCirclePass : styles.scoreCircleFail]}
+        >
           <Text testID="results-score-number" style={styles.scoreNumber}>
-            {pct}%
+            {passed ? '✓' : '✗'}
           </Text>
           <Text testID="results-score-label" style={styles.scoreSubLabel}>
             {score} / {total} words
@@ -235,7 +231,6 @@ export default function ResultsScreen() {
             word={item}
             passed={completedRef.current.includes(item.id)}
             failed={failedRef.current.includes(item.id)}
-            result={resultsRef.current[item.id]}
           />
         )}
         ListFooterComponent={<View style={styles.listFooter} />}
@@ -339,13 +334,18 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#1F3A5F',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  scoreCirclePass: {
+    backgroundColor: '#4CAF50',
+  },
+  scoreCircleFail: {
+    backgroundColor: '#F44336',
+  },
   scoreNumber: {
     fontFamily: 'Lexend_700Bold',
-    fontSize: 32,
+    fontSize: 48,
     color: '#FFFFFF',
   },
   scoreSubLabel: {
