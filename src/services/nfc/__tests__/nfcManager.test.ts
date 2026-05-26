@@ -29,20 +29,30 @@ describe('readTag — iOS', () => {
     (Platform as { OS: string }).OS = 'ios';
   });
 
-  it('calls requestTechnology with alertMessage option on iOS', async () => {
-    (NfcManager.getTag as jest.Mock).mockResolvedValueOnce(VALID_TAG);
-    (Ndef.text.decodePayload as jest.Mock).mockReturnValueOnce('tutoria:module-a');
+  // iOS reads via a Mifare tag session: raw READ pages → Type 2 NDEF TLV →
+  // decoded text. Set up the mocks so the read resolves to `decoded`.
+  function mockMifareRead(decoded: string) {
+    (NfcManager.getTag as jest.Mock).mockResolvedValueOnce({ id: 'mock-id' });
+    // Page bytes containing an NDEF-Message TLV (0x03, len 4) and Terminator (0xFE)
+    (NfcManager.sendMifareCommandIOS as jest.Mock).mockResolvedValueOnce([
+      0x03, 0x04, 0xaa, 0xbb, 0xcc, 0xdd, 0xfe,
+    ]);
+    (Ndef.decodeMessage as jest.Mock).mockReturnValueOnce([{ payload: [] }]);
+    (Ndef.text.decodePayload as jest.Mock).mockReturnValueOnce(decoded);
+  }
+
+  it('opens a Mifare tag session with the alertMessage option on iOS', async () => {
+    mockMifareRead('tutoria:module-a');
 
     await readTag();
 
-    expect(NfcManager.requestTechnology).toHaveBeenCalledWith(NfcTech.Ndef, {
+    expect(NfcManager.requestTechnology).toHaveBeenCalledWith(NfcTech.MifareIOS, {
       alertMessage: 'Hold your Tutoria card near the top of your iPhone',
     });
   });
 
   it('calls setAlertMessageIOS with "Card detected!" for a valid card', async () => {
-    (NfcManager.getTag as jest.Mock).mockResolvedValueOnce(VALID_TAG);
-    (Ndef.text.decodePayload as jest.Mock).mockReturnValueOnce('tutoria:module-a');
+    mockMifareRead('tutoria:module-a');
 
     await readTag();
 
@@ -51,8 +61,7 @@ describe('readTag — iOS', () => {
   });
 
   it('calls invalidateSessionWithErrorIOS for an invalid card on iOS', async () => {
-    (NfcManager.getTag as jest.Mock).mockResolvedValueOnce(VALID_TAG);
-    (Ndef.text.decodePayload as jest.Mock).mockReturnValueOnce('not-tutoria:foo');
+    mockMifareRead('not-tutoria:foo');
 
     await readTag();
 
