@@ -133,25 +133,26 @@ apiClient.interceptors.response.use(
       const method = (cfg.method || 'GET').toUpperCase();
       const url = `${cfg.baseURL ?? ''}${cfg.url ?? ''}`;
       const message = data?.error || data?.message || 'Unknown error';
-      console.error(`[API] ${status} ${method} ${url}: ${message}`);
-      // For 4xx/5xx, dump the full response body and request body so we can see
-      // *why* the backend rejected the call. The default `data?.error` extract
-      // hides nested validation messages, stack traces and missing-field hints.
-      if (status >= 400) {
+      // Single consolidated warn — callers surface these errors in the UI, so a
+      // triple console.error per failure is just noise. The request/response
+      // bodies (which reveal *why* the backend rejected the call) are attached
+      // in dev only, where they're useful for debugging.
+      const details: Record<string, unknown> = {};
+      if (__DEV__ && status >= 400) {
         try {
-          const bodyPreview = typeof cfg.data === 'string' ? cfg.data : JSON.stringify(cfg.data);
-          console.error('[API] request body:', bodyPreview);
+          details.requestBody = typeof cfg.data === 'string' ? cfg.data : JSON.stringify(cfg.data);
         } catch {
           // Ignore stringify errors (e.g. circular request bodies)
         }
         try {
-          console.error('[API] response body:', JSON.stringify(data));
+          details.responseBody = JSON.stringify(data);
         } catch {
-          console.error('[API] response body (non-serialisable):', data);
+          details.responseBody = data;
         }
       }
+      console.warn(`[API] ${status} ${method} ${url}: ${message}`, details);
     } else if (error.request) {
-      console.error('[API] Network error — no response received');
+      console.warn('[API] Network error — no response received');
     }
     return Promise.reject(error);
   },

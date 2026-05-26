@@ -1,6 +1,6 @@
 import { useFocusEffect, useIsFocused } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityList } from '@/components/progress/ActivityList';
 import { StreakBadge } from '@/components/progress/StreakBadge';
@@ -31,30 +31,29 @@ function ProgressScreenContent() {
   const [error, setError] = useState<string | null>(null);
   const isFocused = useIsFocused();
   const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Monotonic id used to ignore results from a fetch that was superseded or
+  // invalidated (e.g. the screen blurred mid-request). Bumped on each fetch
+  // and on focus-effect teardown so stale responses can't set state.
+  const fetchIdRef = useRef(0);
 
   const fetchData = useCallback(async () => {
     if (!activeProfile) return;
-    let cancelled = false;
+    const fetchId = ++fetchIdRef.current;
     console.log('[Progress] fetching data…');
     setLoading(true);
     setError(null);
     try {
       const data = await getProgress(activeProfile.id);
-      if (!cancelled) {
-        console.log('[Progress] received activities:', data.activities.length);
-        setActivities(data.activities);
-        setStreakDays(data.streakDays);
-      }
+      if (fetchId !== fetchIdRef.current) return;
+      console.log('[Progress] received activities:', data.activities.length);
+      setActivities(data.activities);
+      setStreakDays(data.streakDays);
     } catch {
-      if (!cancelled) {
-        setError('Failed to load progress. Please try again.');
-      }
+      if (fetchId !== fetchIdRef.current) return;
+      setError('Failed to load progress. Please try again.');
     } finally {
-      setLoading(false);
+      if (fetchId === fetchIdRef.current) setLoading(false);
     }
-    return () => {
-      cancelled = true;
-    };
   }, [activeProfile, setActivities, setLoading, setStreakDays]);
 
   // Deduplicate rapid fetch triggers (useFocusEffect + useEffect([lastInvalidatedAt]) can both
@@ -68,6 +67,12 @@ function ProgressScreenContent() {
     useCallback(() => {
       console.log('[Progress] focus effect fired, fetching…');
       debouncedFetch();
+      return () => {
+        // Invalidate any in-flight fetch and cancel a pending debounced call so
+        // they can't set state after the screen has blurred/unmounted.
+        fetchIdRef.current++;
+        if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
+      };
     }, [debouncedFetch]),
   );
 
@@ -107,6 +112,13 @@ function ProgressScreenContent() {
           <Text testID="progress-error-text" style={styles.errorText}>
             {error}
           </Text>
+          <Pressable
+            testID="progress-retry-button"
+            style={styles.retryButton}
+            onPress={() => debouncedFetch()}
+          >
+            <Text style={styles.retryButtonText}>Try Again 🔄</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -181,5 +193,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Lexend_400Regular',
     color: '#E71D36',
     textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    height: 48,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    backgroundColor: '#FF9F1C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryButtonText: {
+    fontFamily: 'Lexend_700Bold',
+    fontSize: 16,
+    color: '#FFFFFF',
   },
 });
