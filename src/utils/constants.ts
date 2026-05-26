@@ -13,6 +13,11 @@ export const CLERK_ENABLED =
   /^pk_(test|live)_/.test(CLERK_PUBLISHABLE_KEY) &&
   !CLERK_PUBLISHABLE_KEY.includes('your_key_here');
 
+// Set to true ONLY when the Cloudflare Worker is updated to verify Clerk JWTs
+// via its JWKS endpoint. While false, all API requests send the static bypass
+// token even when a Clerk session is active, and 401s do not trigger sign-out.
+export const BACKEND_SUPPORTS_CLERK = false;
+
 // NFC
 export const NFC_TAG_PREFIX = 'tutoria:';
 export const SUPPORTED_TAG_TECH = 'Ndef';

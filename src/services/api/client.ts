@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE_URL } from '../../utils/constants';
+import { API_BASE_URL, BACKEND_SUPPORTS_CLERK } from '../../utils/constants';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -16,9 +16,8 @@ declare module 'axios' {
   }
 }
 
-// Fallback token used for native audio downloads and integration tests, and on
-// every request while Clerk is disabled (no publishable key set). When a Clerk
-// session exists, the request interceptor injects a fresh JWT instead.
+// Fallback token used for all requests while BACKEND_SUPPORTS_CLERK is false, and for
+// native audio downloads / integration tests regardless of flag state.
 const BYPASS_TOKEN = 'tutoria-integration-test-2026';
 
 /**
@@ -88,16 +87,16 @@ export function getAuthHeader(): string {
  * Returns a fresh Clerk JWT when a session exists, otherwise the bypass token.
  */
 export async function getAuthHeaderAsync(): Promise<string> {
-  if (_getToken) {
+  if (BACKEND_SUPPORTS_CLERK && _getToken) {
     const token = await _getToken();
     if (token) return `Bearer ${token}`;
   }
   return `Bearer ${BYPASS_TOKEN}`;
 }
 
-// Request interceptor — injects a fresh Clerk JWT when available, else the bypass token.
+// Request interceptor — injects a Clerk JWT only when BACKEND_SUPPORTS_CLERK is true, else bypass token.
 apiClient.interceptors.request.use(async (config) => {
-  if (_getToken) {
+  if (BACKEND_SUPPORTS_CLERK && _getToken) {
     const token = await _getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -112,7 +111,12 @@ apiClient.interceptors.request.use(async (config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401 && !error.config?._isRetry && _getToken) {
+    if (
+      BACKEND_SUPPORTS_CLERK &&
+      error.response?.status === 401 &&
+      !error.config?._isRetry &&
+      _getToken
+    ) {
       const freshToken = await _getToken();
       if (freshToken) {
         error.config.headers.Authorization = `Bearer ${freshToken}`;
@@ -120,7 +124,7 @@ apiClient.interceptors.response.use(
         return apiClient(error.config);
       }
       _signOut?.();
-    } else if (error.response?.status === 401) {
+    } else if (BACKEND_SUPPORTS_CLERK && error.response?.status === 401) {
       _signOut?.();
     }
 

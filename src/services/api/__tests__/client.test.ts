@@ -1,8 +1,4 @@
-import apiClient, {
-  getAuthHeaderAsync,
-  setSignOutHandler,
-  setTokenGetter,
-} from '../client';
+import apiClient, { getAuthHeaderAsync, setSignOutHandler, setTokenGetter } from '../client';
 
 const BYPASS = 'Bearer tutoria-integration-test-2026';
 
@@ -25,9 +21,9 @@ describe('getAuthHeaderAsync', () => {
     expect(await getAuthHeaderAsync()).toBe(BYPASS);
   });
 
-  it('returns a Clerk JWT when the getter yields a token', async () => {
+  it('returns the bypass token even when a getter is registered (flag off)', async () => {
     setTokenGetter(async () => 'jwt-123');
-    expect(await getAuthHeaderAsync()).toBe('Bearer jwt-123');
+    expect(await getAuthHeaderAsync()).toBe(BYPASS);
   });
 
   it('falls back to the bypass token when the getter yields null', async () => {
@@ -42,12 +38,10 @@ describe('request interceptor', () => {
     expect((config as { headers: Record<string, string> }).headers.Authorization).toBe(BYPASS);
   });
 
-  it('injects a fresh Clerk JWT when a getter is registered', async () => {
+  it('injects the bypass token even when a getter is registered (flag off)', async () => {
     setTokenGetter(async () => 'jwt-abc');
     const config = await requestInterceptor.fulfilled({ headers: {} });
-    expect((config as { headers: Record<string, string> }).headers.Authorization).toBe(
-      'Bearer jwt-abc',
-    );
+    expect((config as { headers: Record<string, string> }).headers.Authorization).toBe(BYPASS);
   });
 
   it('falls back to the bypass token when the getter yields null', async () => {
@@ -58,7 +52,7 @@ describe('request interceptor', () => {
 });
 
 describe('response interceptor — 401 handling', () => {
-  it('calls the sign-out handler on a 401 when no token getter is set', async () => {
+  it('does not call sign-out on a 401 while BACKEND_SUPPORTS_CLERK is false', async () => {
     const signOut = jest.fn();
     setSignOutHandler(signOut);
 
@@ -69,6 +63,6 @@ describe('response interceptor — 401 handling', () => {
       }),
     ).rejects.toBeDefined();
 
-    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOut).not.toHaveBeenCalled();
   });
 });
