@@ -15,6 +15,7 @@ module.exports = {
     isLoaded: true,
   })),
   useAuth: jest.fn(() => ({
+    isLoaded: true,
     isSignedIn: false,
     userId: null,
     signOut: jest.fn(),

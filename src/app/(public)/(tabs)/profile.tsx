@@ -1,10 +1,32 @@
+import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { listProfiles, selectProfile } from '@/services/api';
 import { useProfileStore } from '@/stores/useProfileStore';
+import { CLERK_ENABLED } from '@/utils/constants';
 import type { Profile } from '@/utils/types';
+
+function SignOutButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      testID="profile-sign-out-button"
+      style={styles.signOutButton}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Sign out"
+    >
+      <Text style={styles.signOutText}>Sign Out</Text>
+    </Pressable>
+  );
+}
+
+// Calls useAuth, so only mounted when Clerk is active (provider present).
+function ClerkSignOutButton() {
+  const { signOut } = useAuth();
+  return <SignOutButton onPress={() => signOut()} />;
+}
 
 const COLORS = {
   navy: '#1F3A5F',
@@ -132,17 +154,7 @@ function ProfileScreenContent() {
         <Text testID="profile-header-title" style={styles.headerTitle}>
           Profiles
         </Text>
-        <Pressable
-          testID="profile-sign-out-button"
-          style={styles.signOutButton}
-          onPress={() => {
-            /* TODO Phase 4: wire Clerk signOut here */
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Sign out"
-        >
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </Pressable>
+        {CLERK_ENABLED ? <ClerkSignOutButton /> : <SignOutButton onPress={() => {}} />}
       </View>
 
       {profiles.length === 0 ? (

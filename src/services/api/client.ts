@@ -16,7 +16,9 @@ declare module 'axios' {
   }
 }
 
-// TODO Phase 4: Remove bypass token and switch to Clerk JWTs via setTokenGetter.
+// Fallback token used for native audio downloads and integration tests, and on
+// every request while Clerk is disabled (no publishable key set). When a Clerk
+// session exists, the request interceptor injects a fresh JWT instead.
 const BYPASS_TOKEN = 'tutoria-integration-test-2026';
 
 /**
@@ -34,11 +36,25 @@ const apiClient = axios.create({
 // Request gzip compression so large pronunciation responses (Azure word-level breakdown) travel faster.
 apiClient.defaults.headers.common['Accept-Encoding'] = 'gzip';
 
+/**
+ * A reference to Clerk's getToken function.
+ * Set via setTokenGetter() once Clerk is ready in the root layout.
+ * Using a callback ensures every request gets a fresh, auto-refreshed token.
+ */
+let _getToken: (() => Promise<string | null>) | null = null;
+
+/**
+ * A reference to a sign-out handler.
+ * Called by the response interceptor on 401 to clear auth and redirect to sign-in.
+ */
 let _signOut: (() => void) | null = null;
 
-// TODO Phase 4: Re-enable setTokenGetter to inject Clerk JWTs.
-export function setTokenGetter(_fn: (() => Promise<string | null>) | null): void {
-  // no-op until Phase 4
+/**
+ * Register Clerk's getToken function so the request interceptor can
+ * fetch a fresh JWT before every API call. Pass null to clear on sign-out.
+ */
+export function setTokenGetter(fn: (() => Promise<string | null>) | null): void {
+  _getToken = fn;
 }
 
 /**
@@ -50,27 +66,61 @@ export function setSignOutHandler(fn: (() => void) | null): void {
 }
 
 /** @deprecated Use setTokenGetter instead. Kept for backward compatibility. */
-export function setAuthToken(_token: string | null): void {
-  // no-op until Phase 4
+export function setAuthToken(token: string | null): void {
+  if (token) {
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete apiClient.defaults.headers.common['Authorization'];
+  }
 }
 
-/** Returns the current Authorization header value for use in native fetch contexts (e.g. FileSystem.downloadAsync). */
+/**
+ * Synchronous Authorization header for native fetch contexts that cannot await.
+ * Always returns the bypass token — prefer getAuthHeaderAsync() where a Clerk JWT
+ * is needed (e.g. authenticated audio downloads).
+ */
 export function getAuthHeader(): string {
   return `Bearer ${BYPASS_TOKEN}`;
 }
 
-// Request interceptor — injects the static bypass token on every request
-// TODO Phase 4: Replace with Clerk JWT from _getToken()
-apiClient.interceptors.request.use((config) => {
+/**
+ * Authorization header for native fetch contexts (e.g. FileSystem.downloadAsync).
+ * Returns a fresh Clerk JWT when a session exists, otherwise the bypass token.
+ */
+export async function getAuthHeaderAsync(): Promise<string> {
+  if (_getToken) {
+    const token = await _getToken();
+    if (token) return `Bearer ${token}`;
+  }
+  return `Bearer ${BYPASS_TOKEN}`;
+}
+
+// Request interceptor — injects a fresh Clerk JWT when available, else the bypass token.
+apiClient.interceptors.request.use(async (config) => {
+  if (_getToken) {
+    const token = await _getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+      return config;
+    }
+  }
   config.headers.Authorization = `Bearer ${BYPASS_TOKEN}`;
   return config;
 });
 
-// Response interceptor for consistent error handling
+// Response interceptor for consistent error handling and 401 token refresh.
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !error.config?._isRetry && _getToken) {
+      const freshToken = await _getToken();
+      if (freshToken) {
+        error.config.headers.Authorization = `Bearer ${freshToken}`;
+        error.config._isRetry = true;
+        return apiClient(error.config);
+      }
+      _signOut?.();
+    } else if (error.response?.status === 401) {
       _signOut?.();
     }
 
