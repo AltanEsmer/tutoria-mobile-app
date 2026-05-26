@@ -1,3 +1,4 @@
+import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -12,6 +13,15 @@ import {
 } from 'react-native';
 import { createProfile } from '@/services/api';
 import { useProfileStore } from '@/stores/useProfileStore';
+import { CLERK_ENABLED } from '@/utils/constants';
+
+// CLERK_ENABLED is a process-lifetime constant, so this branch is stable across
+// renders — useAuth is only called when the ClerkProvider is actually mounted.
+function useClerkUserId(): string {
+  if (!CLERK_ENABLED) return '';
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useAuth().userId ?? '';
+}
 
 const COLORS = {
   navy: '#1F3A5F',
@@ -31,6 +41,7 @@ const NAME_MAX = 30;
 export default function AddProfileScreen() {
   const router = useRouter();
   const { addProfile } = useProfileStore();
+  const userId = useClerkUserId();
 
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
@@ -75,7 +86,7 @@ export default function AddProfileScreen() {
       addProfile({
         id: profileId,
         name: name.trim(),
-        user_id: '', // TODO Phase 4: replace with Clerk userId
+        user_id: userId,
         created_at: new Date().toISOString(),
       });
       router.back();
