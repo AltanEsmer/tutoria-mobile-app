@@ -87,7 +87,10 @@ export function usePronunciation() {
   // before start + WARMUP_MS are dropped — they carry the metering value from the
   // previous (stopped) session and would otherwise corrupt noise-floor calibration.
   const recordingStartedAtRef = useRef<number>(0);
-  const WARMUP_MS = 120;
+  // Sized for ~3 polling intervals at METERING_INTERVAL_MS=80 so iOS PlayAndRecord
+  // re-activation (the second time we toggle into recording during a lesson) has
+  // settled before any frame counts toward calibration.
+  const WARMUP_MS = 240;
 
   // C3 — Metering effect: normalize raw dB to [0,1] and track speech presence.
   // expo-audio returns negative dB where 0 = max; map via (metering + 60) / 60.
@@ -215,6 +218,14 @@ export function usePronunciation() {
         playsInSilentMode: true,
         shouldRouteThroughEarpiece: false,
       });
+
+      // iOS AVAudioSession PlayAndRecord activation is async. On the second and
+      // later recordings in a lesson (after playback re-activated the Playback
+      // category), starting the recorder immediately gives ~200ms of silent mic
+      // input which silence-gate then misreports as "we couldn't hear you".
+      if (Platform.OS === 'ios') {
+        await new Promise<void>((r) => setTimeout(r, 120));
+      }
 
       if (isCancelledRef.current) return;
 
