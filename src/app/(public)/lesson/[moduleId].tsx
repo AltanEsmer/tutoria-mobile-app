@@ -19,7 +19,30 @@ import { useProfileStore } from '@/stores/useProfileStore';
 import { useProgressStore } from '@/stores/useProgressStore';
 import { MAX_PREFETCH_WORDS } from '@/utils/constants';
 import { isPronunciationPassing } from '@/utils/pronunciation';
-import type { PronunciationCheckResponse } from '@/utils/types';
+import type { PronunciationCheckResponse, WordData } from '@/utils/types';
+
+// Read curriculum-provided variants off a word. The IPA-based format uses
+// `acceptable_variants`; an older snake/camel mix also surfaces `acceptableIPAs`
+// from the sounds-resolve endpoint. Both are valid variant lists for matching.
+function collectAcceptableVariants(word: WordData | null | undefined): string[] {
+  if (!word) return [];
+  const raw: unknown[] = [];
+  const v1 = (word as { acceptable_variants?: unknown }).acceptable_variants;
+  const v2 = (word as { acceptableIPAs?: unknown }).acceptableIPAs;
+  if (Array.isArray(v1)) raw.push(...v1);
+  if (Array.isArray(v2)) raw.push(...v2);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'string') continue;
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
 
 const MAX_WORD_ATTEMPTS = 3;
 
@@ -266,7 +289,7 @@ export default function LessonScreen() {
     }
 
     const freshWordId = freshWord.id;
-    const passed = isPronunciationPassing(result);
+    const passed = isPronunciationPassing(result, collectAcceptableVariants(freshWord));
     store.recordAttempt(freshWordId, passed, result);
     setFeedbackResult(result);
 
@@ -314,7 +337,13 @@ export default function LessonScreen() {
 
   const handleNextWord = useCallback(() => {
     haptics.buttonTapHaptic();
-    const isPassing = isPronunciationPassing(feedbackResult);
+    // Use the same variant list that handleRecordStop did so the verdict here
+    // matches the one that was already recorded into the store.
+    const wordForVerdict = useLessonStore.getState().currentWord;
+    const isPassing = isPronunciationPassing(
+      feedbackResult,
+      collectAcceptableVariants(wordForVerdict),
+    );
     advanceToNextWord(isPassing);
   }, [haptics, feedbackResult, advanceToNextWord]);
 

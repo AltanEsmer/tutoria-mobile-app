@@ -176,4 +176,138 @@ describe('isPronunciationPassing', () => {
       ),
     ).toBe(true);
   });
+
+  // ─── Two-sided abstention fallback ─────────────────────────────────────────
+  // Observed live: target "/ʃə/" (sh-uh), child says only "/ʃ/". Azure scores
+  // the phoneme cleanly, two-sided judge's free transcription returns "/ʃ/"
+  // with high confidence, but the judge labels it UNKNOWN because it didn't
+  // match the full target sequence. We must accept it because "/ʃ/" is on the
+  // curriculum's acceptable_variants list.
+  describe('TWO_SIDED_UNKNOWN abstention fallback against acceptableVariants', () => {
+    const shAbstentionResult = makeResult({
+      resultType: 'TWO_SIDED_UNKNOWN',
+      overallIsCorrect: null,
+      pronunciation_match: false,
+      similarity: 90,
+      feedback: "Heard /none/ - doesn't match target. Try again.",
+      ipa_transcription_user: 'none',
+      ipa_transcription_reference: '/ʃə/',
+      azure: {
+        spokenPhonemes: ['/ʃ/', '/ʊ/'],
+        concatenatedIPA: 'ʃʊ',
+        wordAccuracyScore: 61,
+        phonemeConfidences: { ʃ: 100, ʊ: 27 },
+      },
+      debug: {
+        processingTime: 2366,
+        twoSided: {
+          result: 'UNKNOWN',
+          rawTranscription: '/ʃ/',
+          transcriptionConfidence: 95,
+          speechDetected: true,
+        },
+      },
+    });
+
+    it("accepts when two-sided rawTranscription matches an acceptable variant ('/ʃ/' for target '/ʃə/')", () => {
+      expect(isPronunciationPassing(shAbstentionResult, ['/ʃə/', '/ʃ/'])).toBe(true);
+    });
+
+    it('accepts variants in either delimited or bare form', () => {
+      expect(isPronunciationPassing(shAbstentionResult, ['ʃə', 'ʃ'])).toBe(true);
+    });
+
+    it("doesn't accept when no variants are passed (existing behavior preserved)", () => {
+      expect(isPronunciationPassing(shAbstentionResult)).toBe(false);
+      expect(isPronunciationPassing(shAbstentionResult, [])).toBe(false);
+    });
+
+    it("doesn't accept when two-sided transcription confidence is below the floor", () => {
+      const lowConf = makeResult({
+        ...shAbstentionResult,
+        debug: {
+          processingTime: 0,
+          twoSided: { rawTranscription: '/ʃ/', transcriptionConfidence: 40 },
+        },
+        // Also strip the azure concatenatedIPA fallback so only the low-confidence
+        // two-sided signal is available.
+        azure: { wordAccuracyScore: 61, phonemeConfidences: { ʃ: 100 } },
+      });
+      expect(isPronunciationPassing(lowConf, ['/ʃə/', '/ʃ/'])).toBe(false);
+    });
+
+    it("doesn't accept when the heard variant isn't on the acceptable list", () => {
+      const heardWrong = makeResult({
+        ...shAbstentionResult,
+        debug: {
+          processingTime: 0,
+          twoSided: { rawTranscription: '/s/', transcriptionConfidence: 95 },
+        },
+        azure: { wordAccuracyScore: 61, phonemeConfidences: { s: 90 } },
+      });
+      expect(isPronunciationPassing(heardWrong, ['/ʃə/', '/ʃ/'])).toBe(false);
+    });
+
+    it("doesn't accept on explicit TWO_SIDED_FAIL (only abstention triggers fallback)", () => {
+      const explicitFail = makeResult({
+        ...shAbstentionResult,
+        resultType: 'TWO_SIDED_FAIL',
+      });
+      expect(isPronunciationPassing(explicitFail, ['/ʃə/', '/ʃ/'])).toBe(false);
+    });
+
+    it("doesn't bypass the Azure wordAccuracyScore floor", () => {
+      const lowAzure = makeResult({
+        ...shAbstentionResult,
+        azure: {
+          spokenPhonemes: ['/ʃ/'],
+          concatenatedIPA: 'ʃ',
+          wordAccuracyScore: 15,
+          phonemeConfidences: { ʃ: 80 },
+        },
+      });
+      expect(isPronunciationPassing(lowAzure, ['/ʃə/', '/ʃ/'])).toBe(false);
+    });
+
+    it('falls back to Azure concatenatedIPA when no twoSided signal is present', () => {
+      const noTwoSided = makeResult({
+        ...shAbstentionResult,
+        debug: { processingTime: 0 },
+        azure: {
+          spokenPhonemes: ['/ʃ/'],
+          concatenatedIPA: 'ʃ',
+          wordAccuracyScore: 65,
+          phonemeConfidences: { ʃ: 90 },
+        },
+      });
+      expect(isPronunciationPassing(noTwoSided, ['/ʃə/', '/ʃ/'])).toBe(true);
+    });
+
+    it('rejects Azure-fallback match when phoneme confidence is below the floor', () => {
+      const lowPhoneme = makeResult({
+        ...shAbstentionResult,
+        debug: { processingTime: 0 },
+        azure: {
+          concatenatedIPA: 'ʃ',
+          wordAccuracyScore: 65,
+          phonemeConfidences: { ʃ: 40 },
+        },
+      });
+      expect(isPronunciationPassing(lowPhoneme, ['/ʃə/', '/ʃ/'])).toBe(false);
+    });
+
+    it('still passes the existing TWO_SIDED_PASS happy path with variants present', () => {
+      expect(
+        isPronunciationPassing(
+          makeResult({
+            resultType: 'TWO_SIDED_PASS',
+            similarity: 100,
+            overallIsCorrect: true,
+            azure: { wordAccuracyScore: 92 },
+          }),
+          ['/ʃɒp/', '/ʃɑp/'],
+        ),
+      ).toBe(true);
+    });
+  });
 });

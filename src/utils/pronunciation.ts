@@ -42,6 +42,15 @@ const NEGATIVE_FEEDBACK_CUES = [
 // 60–95; wrong-word attempts (observed) score <15.
 const MIN_AZURE_WORD_ACCURACY = 50;
 
+// Two-sided abstention fallback thresholds. When the Gemini judge returns
+// TWO_SIDED_UNKNOWN (it heard speech but wouldn't commit to PASS/FAIL),
+// we cross-check against the curriculum's acceptable_variants. The judge's
+// own rawTranscription is preferred — it's a free transcription rather than
+// a force-alignment to the reference text, so it correctly reports "/ʃ/"
+// when the user said just the consonant of a target like "/ʃə/".
+const MIN_TWO_SIDED_TRANSCRIPTION_CONFIDENCE = 70;
+const MIN_AZURE_PHONEME_CONFIDENCE = 60;
+
 function similarityIsPassing(similarity: number): boolean {
   // Server has historically emitted `similarity` in 0–100, but the API spec
   // example (`docs/tutoria-api.md`) shows 0–1. Normalize so either scale works:
@@ -66,6 +75,99 @@ function extractAzureWordAccuracy(azure: unknown): number | null {
   if (!azure || typeof azure !== 'object') return null;
   const raw = (azure as Record<string, unknown>)['wordAccuracyScore'];
   return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+}
+
+// IPA strings arrive in several shapes: `/ʃə/`, `ʃə`, `ʃ ə`, with stress marks.
+// Normalize aggressively so equality against the curriculum's variant list works.
+function normalizeIpa(ipa: string): string {
+  return ipa
+    .toLowerCase()
+    .replace(/\//g, '')
+    .replace(/\s+/g, '')
+    .replace(/[ˈˌ]/g, '')
+    .trim();
+}
+
+interface AzureLike {
+  concatenatedIPA?: unknown;
+  spokenPhonemes?: unknown;
+  phonemeConfidences?: unknown;
+}
+
+function extractAzureSpokenIpa(azure: unknown): string | null {
+  if (!azure || typeof azure !== 'object') return null;
+  const a = azure as AzureLike;
+  if (typeof a.concatenatedIPA === 'string' && a.concatenatedIPA.length > 0) {
+    return normalizeIpa(a.concatenatedIPA);
+  }
+  if (Array.isArray(a.spokenPhonemes)) {
+    const joined = a.spokenPhonemes.filter((p): p is string => typeof p === 'string').join('');
+    if (joined.length > 0) return normalizeIpa(joined);
+  }
+  return null;
+}
+
+// Every phoneme that appears in `ipa` must have a confidence ≥ the floor in
+// `azure.phonemeConfidences`. Single-character keys are checked by `includes`;
+// multi-character entries (e.g. "tʃ", "oʊ") are included verbatim if Azure
+// emits them as a key. Missing keys fail closed — we'd rather be strict than
+// accept a low-confidence variant match.
+function azurePhonemesAllConfident(azure: unknown, ipa: string): boolean {
+  if (!azure || typeof azure !== 'object') return false;
+  const confidences = (azure as AzureLike).phonemeConfidences;
+  if (!confidences || typeof confidences !== 'object') return false;
+  const map = confidences as Record<string, unknown>;
+  for (const phoneme of Object.keys(map)) {
+    if (!ipa.includes(phoneme)) continue;
+    const c = map[phoneme];
+    if (typeof c !== 'number' || c < MIN_AZURE_PHONEME_CONFIDENCE) return false;
+  }
+  return true;
+}
+
+interface TwoSidedLike {
+  rawTranscription?: unknown;
+  transcriptionConfidence?: unknown;
+}
+
+function extractTwoSidedTranscription(
+  debug: unknown,
+): { ipa: string; confidence: number } | null {
+  if (!debug || typeof debug !== 'object') return null;
+  const ts = (debug as { twoSided?: unknown }).twoSided;
+  if (!ts || typeof ts !== 'object') return null;
+  const t = ts as TwoSidedLike;
+  if (typeof t.rawTranscription !== 'string') return null;
+  const ipa = normalizeIpa(t.rawTranscription);
+  if (!ipa) return null;
+  const confidence = typeof t.transcriptionConfidence === 'number' ? t.transcriptionConfidence : 0;
+  return { ipa, confidence };
+}
+
+/**
+ * Does what Azure / the two-sided judge heard match one of the curriculum's
+ * acceptable variants for this word? Used as a fallback only when the judge
+ * abstained (TWO_SIDED_UNKNOWN). The curriculum lists shorter variants for
+ * targets like "/ʃə/" — kids often produce just "/ʃ/" and that's correct.
+ */
+function matchesAcceptableVariant(
+  result: PronunciationCheckResponse,
+  acceptableVariants: readonly string[],
+): boolean {
+  const normalizedVariants = acceptableVariants.map(normalizeIpa).filter((v) => v.length > 0);
+  if (normalizedVariants.length === 0) return false;
+
+  const twoSided = extractTwoSidedTranscription(result.debug);
+  if (twoSided && twoSided.confidence >= MIN_TWO_SIDED_TRANSCRIPTION_CONFIDENCE) {
+    if (normalizedVariants.includes(twoSided.ipa)) return true;
+  }
+
+  const azureIpa = extractAzureSpokenIpa(result.azure);
+  if (azureIpa && normalizedVariants.includes(azureIpa)) {
+    if (azurePhonemesAllConfident(result.azure, azureIpa)) return true;
+  }
+
+  return false;
 }
 
 /**
@@ -104,27 +206,38 @@ export function getDisplayScore(
  * is to fail on any negative cue and require the ground-truth Azure score
  * to clear a floor.
  *
- *   1. errorType set                 → infrastructure failure, "no attempt".
- *   2. pronunciation_match=false     → strongest "wrong word" signal.
- *   3. resultType ∉ allow-list       → trust the labelled verdict.
- *   4. feedback text negative cue    → e.g. "I heard left, try pack" override.
- *   5. azure.wordAccuracyScore < 50  → Gemini hallucination guard. Catches
- *       cases where the high-level judge returns PASS but Azure's per-phoneme
- *       analysis shows the user said something unrelated (observed for
- *       "goal" vs "swept" — Azure scored 8/100 while Gemini said PASS).
- *   6. Then accept iff overallIsCorrect OR similarity ≥ threshold.
+ *   1. errorType set                  → infrastructure failure, "no attempt".
+ *   2. azure.wordAccuracyScore < 50   → Gemini hallucination guard. Applied
+ *       early so the abstention fallback below cannot bypass it.
+ *   3. Two-sided abstention fallback → when the judge returned UNKNOWN but
+ *       Azure / its own rawTranscription heard an acceptable variant of the
+ *       target (e.g. "/ʃ/" for target "/ʃə/"), accept it.
+ *   4. pronunciation_match=false      → strongest "wrong word" signal.
+ *   5. resultType ∉ allow-list        → trust the labelled verdict.
+ *   6. feedback text negative cue     → e.g. "I heard left, try pack" override.
+ *   7. Then accept iff overallIsCorrect OR similarity ≥ threshold.
  */
 export function isPronunciationPassing(
   result: PronunciationCheckResponse | null | undefined,
+  acceptableVariants?: readonly string[],
 ): boolean {
   if (!result) return false;
   if (result.errorType) return false;
-  if (result.pronunciation_match === false) return false;
-  if (result.resultType && !PASSING_RESULT_TYPES.has(result.resultType.toLowerCase())) return false;
-  if (feedbackHasNegativeCue(result.feedback)) return false;
 
   const azureAccuracy = extractAzureWordAccuracy(result.azure);
   if (azureAccuracy !== null && azureAccuracy < MIN_AZURE_WORD_ACCURACY) return false;
 
-  return result.overallIsCorrect || similarityIsPassing(result.similarity);
+  const isAbstention =
+    typeof result.resultType === 'string' &&
+    result.resultType.toLowerCase() === 'two_sided_unknown' &&
+    (result.overallIsCorrect === null || result.overallIsCorrect === undefined);
+  if (isAbstention && acceptableVariants && acceptableVariants.length > 0) {
+    if (matchesAcceptableVariant(result, acceptableVariants)) return true;
+  }
+
+  if (result.pronunciation_match === false) return false;
+  if (result.resultType && !PASSING_RESULT_TYPES.has(result.resultType.toLowerCase())) return false;
+  if (feedbackHasNegativeCue(result.feedback)) return false;
+
+  return result.overallIsCorrect === true || similarityIsPassing(result.similarity);
 }

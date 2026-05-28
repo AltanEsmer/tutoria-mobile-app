@@ -9,6 +9,17 @@ export function useNetworkState() {
 
   useEffect(() => {
     const applyState = (state: NetInfoState) => {
+      if (__DEV__) {
+        console.log(
+          '[Network]',
+          'isConnected=',
+          state.isConnected,
+          'reachable=',
+          state.isInternetReachable,
+          'type=',
+          state.type,
+        );
+      }
       // Three-way check: true = online, false = offline, null = unknown (ignore).
       // Treating null as offline caused false-positive "You're offline" banners
       // because NetInfo emits null during network transitions on Android/iOS.

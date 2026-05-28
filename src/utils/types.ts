@@ -152,7 +152,8 @@ export interface PronunciationCheckRequest {
 }
 
 export interface PronunciationCheckResponse {
-  overallIsCorrect: boolean;
+  // null when the Gemini Two-Sided judge abstains (resultType TWO_SIDED_UNKNOWN).
+  overallIsCorrect: boolean | null;
   highlightedSegment: string;
   similarity: number; // 0–100
   pronunciation_match: boolean;
@@ -165,6 +166,18 @@ export interface PronunciationCheckResponse {
   errorType: string | null;
   debug: {
     processingTime: number;
+    // Populated when the Gemini judge runs. Carries the judge's free
+    // transcription of what the user said, plus its confidence.
+    twoSided?: {
+      result?: string;
+      closestMatch?: string;
+      confidence?: number;
+      reasoning?: string;
+      speechDetected?: boolean;
+      rawTranscription?: string;
+      transcriptionConfidence?: number;
+    };
+    [key: string]: unknown;
   };
 }
 

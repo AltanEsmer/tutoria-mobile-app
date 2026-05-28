@@ -39,17 +39,44 @@ function ProgressScreenContent() {
   const fetchData = useCallback(async () => {
     if (!activeProfile) return;
     const fetchId = ++fetchIdRef.current;
-    console.log('[Progress] fetching data…');
+    const startedAt = Date.now();
+    console.log('[Progress] fetching data… profileId=', activeProfile.id);
     setLoading(true);
     setError(null);
     try {
       const data = await getProgress(activeProfile.id);
       if (fetchId !== fetchIdRef.current) return;
-      console.log('[Progress] received activities:', data.activities.length);
-      setActivities(data.activities);
-      setStreakDays(data.streakDays);
-    } catch {
+      console.log(
+        '[Progress] received activities:',
+        data.activities?.length ?? 'undefined',
+        'streakDays:',
+        data.streakDays,
+        'in',
+        Date.now() - startedAt,
+        'ms',
+      );
+      setActivities(data.activities ?? []);
+      setStreakDays(data.streakDays ?? 0);
+    } catch (err: unknown) {
       if (fetchId !== fetchIdRef.current) return;
+      // Surface the actual error so backend issues are diagnosable from Metro logs.
+      // The axios response interceptor already logs `[API] <status> ...`, but the
+      // network-failure / timeout branch only logs a vague line — we add detail here.
+      const e = err as
+        | { response?: { status?: number; data?: unknown }; message?: string; code?: string }
+        | undefined;
+      const status = e?.response?.status;
+      const elapsedMs = Date.now() - startedAt;
+      console.warn(
+        '[Progress] fetch failed',
+        JSON.stringify({
+          status: status ?? null,
+          code: e?.code ?? null,
+          message: e?.message ?? 'unknown',
+          elapsedMs,
+          responseBody: e?.response?.data ?? null,
+        }),
+      );
       setError('Failed to load progress. Please try again.');
     } finally {
       if (fetchId === fetchIdRef.current) setLoading(false);
