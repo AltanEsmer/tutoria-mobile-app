@@ -28,6 +28,7 @@ describe('useProgressStore — offline queue', () => {
       lastInvalidatedAt: 0,
       offlineQueue: [],
       isSyncing: false,
+      activityLog: {},
     });
     jest.clearAllMocks();
   });
@@ -131,6 +132,103 @@ describe('useProgressStore — offline queue', () => {
       expect(state.streakDays).toBe(0);
       expect(state.lastInvalidatedAt).toBeGreaterThanOrEqual(before);
       expect(state.lastInvalidatedAt).toBeLessThanOrEqual(after);
+    });
+
+    it('does not clear the on-device activity log', () => {
+      useProgressStore
+        .getState()
+        .recordLocalActivity('prof-1', { id: 'cat', displayText: 'cat', isCorrect: true }, '2026-05-29');
+      useProgressStore.getState().invalidate();
+      expect(useProgressStore.getState().activityLog['prof-1']['cat']).toBeDefined();
+    });
+  });
+
+  describe('recordLocalActivity', () => {
+    it('creates a per-profile entry with the correct date on a correct attempt', () => {
+      useProgressStore
+        .getState()
+        .recordLocalActivity('prof-1', { id: 'cat', displayText: 'cat', isCorrect: true }, '2026-05-29');
+      const entry = useProgressStore.getState().activityLog['prof-1']['cat'];
+      expect(entry).toEqual({
+        id: 'cat',
+        displayText: 'cat',
+        correctDates: ['2026-05-29'],
+        lastDate: '2026-05-29',
+        lastIsCorrect: true,
+      });
+    });
+
+    it('does not add a correct date for an incorrect attempt but updates lastDate', () => {
+      useProgressStore
+        .getState()
+        .recordLocalActivity('prof-1', { id: 'cat', displayText: 'cat', isCorrect: false }, '2026-05-29');
+      const entry = useProgressStore.getState().activityLog['prof-1']['cat'];
+      expect(entry.correctDates).toEqual([]);
+      expect(entry.lastDate).toBe('2026-05-29');
+      expect(entry.lastIsCorrect).toBe(false);
+    });
+
+    it('dedupes the same correct date but accumulates distinct days', () => {
+      const rec = useProgressStore.getState().recordLocalActivity;
+      rec('prof-1', { id: 'cat', displayText: 'cat', isCorrect: true }, '2026-05-29');
+      rec('prof-1', { id: 'cat', displayText: 'cat', isCorrect: true }, '2026-05-29');
+      rec('prof-1', { id: 'cat', displayText: 'cat', isCorrect: true }, '2026-05-30');
+      expect(useProgressStore.getState().activityLog['prof-1']['cat'].correctDates).toEqual([
+        '2026-05-29',
+        '2026-05-30',
+      ]);
+    });
+
+    it('keeps separate logs per profile', () => {
+      const rec = useProgressStore.getState().recordLocalActivity;
+      rec('prof-1', { id: 'cat', displayText: 'cat', isCorrect: true }, '2026-05-29');
+      rec('prof-2', { id: 'dog', displayText: 'dog', isCorrect: true }, '2026-05-29');
+      const log = useProgressStore.getState().activityLog;
+      expect(Object.keys(log['prof-1'])).toEqual(['cat']);
+      expect(Object.keys(log['prof-2'])).toEqual(['dog']);
+    });
+
+    it('ignores calls without a profileId or activity id', () => {
+      const rec = useProgressStore.getState().recordLocalActivity;
+      rec('', { id: 'cat', displayText: 'cat', isCorrect: true }, '2026-05-29');
+      rec('prof-1', { id: '', displayText: '', isCorrect: true }, '2026-05-29');
+      expect(useProgressStore.getState().activityLog).toEqual({});
+    });
+  });
+
+  describe('mergeServerActivities', () => {
+    it('seeds the local log from a server response (correct activity adds its date)', () => {
+      useProgressStore.getState().mergeServerActivities('prof-1', [
+        {
+          id: 'cat',
+          displayText: 'cat',
+          isCorrect: true,
+          daysCorrect: 2,
+          mastered: false,
+          lastDate: '2026-05-28T10:00:00.000Z',
+        },
+      ]);
+      const entry = useProgressStore.getState().activityLog['prof-1']['cat'];
+      expect(entry.correctDates).toEqual(['2026-05-28']);
+      expect(entry.lastDate).toBe('2026-05-28');
+      expect(entry.lastIsCorrect).toBe(true);
+    });
+
+    it('merges without dropping locally-known correct dates', () => {
+      useProgressStore
+        .getState()
+        .recordLocalActivity('prof-1', { id: 'cat', displayText: 'cat', isCorrect: true }, '2026-05-29');
+      useProgressStore.getState().mergeServerActivities('prof-1', [
+        { id: 'cat', displayText: 'cat', isCorrect: true, daysCorrect: 1, mastered: false, lastDate: '2026-05-28' },
+      ]);
+      expect(
+        useProgressStore.getState().activityLog['prof-1']['cat'].correctDates.sort(),
+      ).toEqual(['2026-05-28', '2026-05-29']);
+    });
+
+    it('is a no-op for an empty activities array', () => {
+      useProgressStore.getState().mergeServerActivities('prof-1', []);
+      expect(useProgressStore.getState().activityLog).toEqual({});
     });
   });
 });

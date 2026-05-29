@@ -135,6 +135,40 @@ export interface SaveProgressRequest {
   displayText: string;
 }
 
+/**
+ * Locally-recorded history of a single activity (word), kept on-device so the
+ * Progress page can render real data even when the backend `GET /v1/progress`
+ * call fails. Built from the child's own lesson attempts in the lesson flow.
+ */
+export interface LocalActivityEntry {
+  id: string;
+  displayText: string;
+  /** Distinct YYYY-MM-DD dates the word was answered correctly. */
+  correctDates: string[];
+  /** Most recent attempt date, YYYY-MM-DD. */
+  lastDate: string | null;
+  lastIsCorrect: boolean;
+}
+
+/**
+ * Aggregate stats from `GET /v1/stats/:profileId`. This endpoint does not join
+ * the `activities` table, so it stays reliable even while `GET /v1/progress`
+ * is failing — used as an authoritative source for `streakDays` in fallback.
+ */
+export interface StatsResponse {
+  totalStars: number;
+  streakDays: number;
+  completionPercent: number;
+  mastered: number;
+  chapterProgress: Record<string, number>;
+  chapterProgressDetail: {
+    chapterId: string;
+    mastered: number;
+    total: number;
+    percent: number;
+  }[];
+}
+
 // ─── Pronunciation ──────────────────────────────────────────────
 
 export interface PronunciationCheckRequest {

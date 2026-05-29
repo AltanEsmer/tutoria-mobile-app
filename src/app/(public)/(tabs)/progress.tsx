@@ -6,9 +6,10 @@ import { ActivityList } from '@/components/progress/ActivityList';
 import { StreakBadge } from '@/components/progress/StreakBadge';
 import { WeeklyChart } from '@/components/progress/WeeklyChart';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { getProgress } from '@/services/api';
+import { getProgress, getStats } from '@/services/api';
 import { useProfileStore } from '@/stores/useProfileStore';
 import { useProgressStore } from '@/stores/useProgressStore';
+import { computeStreak, deriveActivities } from '@/utils/progress';
 
 export default function ProgressScreen() {
   return (
@@ -26,6 +27,7 @@ function ProgressScreenContent() {
   const setActivities = useProgressStore((s) => s.setActivities);
   const setStreakDays = useProgressStore((s) => s.setStreakDays);
   const setLoading = useProgressStore((s) => s.setLoading);
+  const mergeServerActivities = useProgressStore((s) => s.mergeServerActivities);
   const lastInvalidatedAt = useProgressStore((s) => s.lastInvalidatedAt);
 
   const [error, setError] = useState<string | null>(null);
@@ -40,23 +42,65 @@ function ProgressScreenContent() {
     if (!activeProfile) return;
     const fetchId = ++fetchIdRef.current;
     const startedAt = Date.now();
-    console.log('[Progress] fetching data… profileId=', activeProfile.id);
+    const profileId = activeProfile.id;
+    console.log('[Progress] fetching data… profileId=', profileId);
     setLoading(true);
     setError(null);
+
+    // Render from the on-device activity log when the backend can't serve progress.
+    // Returns true if anything was shown; false when there is genuinely no local data.
+    const renderFromLocal = async (serverStreak?: number): Promise<boolean> => {
+      const log = useProgressStore.getState().activityLog[profileId] ?? {};
+      const localActivities = deriveActivities(log);
+      if (localActivities.length === 0) return false;
+      setActivities(localActivities);
+      // Prefer an authoritative streak: server progress value, else the working
+      // /v1/stats endpoint (no broken activities join), else locally computed.
+      let streak = typeof serverStreak === 'number' && serverStreak > 0 ? serverStreak : null;
+      if (streak === null) {
+        try {
+          const stats = await getStats(profileId);
+          if (fetchId === fetchIdRef.current && typeof stats?.streakDays === 'number') {
+            streak = stats.streakDays;
+          }
+        } catch {
+          // /v1/stats unavailable — fall back to the locally-computed streak below.
+        }
+      }
+      if (fetchId !== fetchIdRef.current) return true;
+      setStreakDays(streak ?? computeStreak(log, new Date()));
+      setError(null);
+      console.log('[Progress] rendered from local activity log:', localActivities.length, 'words');
+      return true;
+    };
+
     try {
-      const data = await getProgress(activeProfile.id);
+      const data = await getProgress(profileId);
       if (fetchId !== fetchIdRef.current) return;
-      console.log(
-        '[Progress] received activities:',
-        data.activities?.length ?? 'undefined',
-        'streakDays:',
-        data.streakDays,
-        'in',
-        Date.now() - startedAt,
-        'ms',
-      );
-      setActivities(data.activities ?? []);
-      setStreakDays(data.streakDays ?? 0);
+      const serverActivities = data.activities ?? [];
+      if (serverActivities.length > 0) {
+        // Healthy backend path — server is authoritative; seed the local log for offline use.
+        console.log(
+          '[Progress] received activities:',
+          serverActivities.length,
+          'streakDays:',
+          data.streakDays,
+          'in',
+          Date.now() - startedAt,
+          'ms',
+        );
+        setActivities(serverActivities);
+        setStreakDays(data.streakDays ?? 0);
+        mergeServerActivities(profileId, serverActivities);
+        return;
+      }
+      // 200 but no activities — show local history if we have any, else a legitimate empty state.
+      console.log('[Progress] server returned no activities; trying local fallback');
+      const shown = await renderFromLocal(data.streakDays);
+      if (!shown && fetchId === fetchIdRef.current) {
+        setActivities([]);
+        setStreakDays(data.streakDays ?? 0);
+      }
     } catch (err: unknown) {
       if (fetchId !== fetchIdRef.current) return;
       // Surface the actual error so backend issues are diagnosable from Metro logs.
@@ -77,11 +121,16 @@ function ProgressScreenContent() {
           responseBody: e?.response?.data ?? null,
         }),
       );
-      setError('Failed to load progress. Please try again.');
+      // Backend is down — fall back to on-device progress. Only show the error
+      // screen when there's also nothing local to display.
+      const shown = await renderFromLocal();
+      if (!shown && fetchId === fetchIdRef.current) {
+        setError('Failed to load progress. Please try again.');
+      }
     } finally {
       if (fetchId === fetchIdRef.current) setLoading(false);
     }
-  }, [activeProfile, setActivities, setLoading, setStreakDays]);
+  }, [activeProfile, setActivities, setLoading, setStreakDays, mergeServerActivities]);
 
   // Deduplicate rapid fetch triggers (useFocusEffect + useEffect([lastInvalidatedAt]) can both
   // fire within the same render cycle when navigating back from a lesson).

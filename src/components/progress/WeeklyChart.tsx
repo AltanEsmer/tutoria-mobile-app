@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { toDateKey } from '@/utils/progress';
 import type { ActivityProgress } from '@/utils/types';
 
 interface WeeklyChartProps {
@@ -9,13 +10,6 @@ interface WeeklyChartProps {
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MAX_BAR_HEIGHT = 80;
 const MIN_BAR_HEIGHT = 4;
-
-function toDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 export function WeeklyChart({ activities }: WeeklyChartProps) {
   const chartData = useMemo(() => {

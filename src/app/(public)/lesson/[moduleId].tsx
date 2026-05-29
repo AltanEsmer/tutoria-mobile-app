@@ -186,6 +186,16 @@ export default function LessonScreen() {
         );
       }
 
+      // Record into the on-device activity log regardless of network outcome, so the
+      // Progress page can render this attempt even when GET /v1/progress fails.
+      if (activityKey) {
+        useProgressStore.getState().recordLocalActivity(activeProfile.id, {
+          id: activityKey,
+          displayText: rawActivityKey || activityKey,
+          isCorrect,
+        });
+      }
+
       setIsSubmitting(true);
       try {
         if (!completedWordsRef.current.has(currentWord.id)) {
@@ -299,6 +309,15 @@ export default function LessonScreen() {
       const freshProfile = useProfileStore.getState().activeProfile;
       const rawKey = (freshWord.display_text ?? '').trim();
       const activityKey = rawKey || freshWord.id || '';
+      // Record into the on-device activity log so the Progress page reflects this
+      // success even if the backend save (below) or GET /v1/progress later fails.
+      if (activityKey && freshProfile) {
+        useProgressStore.getState().recordLocalActivity(freshProfile.id, {
+          id: activityKey,
+          displayText: rawKey || activityKey,
+          isCorrect: true,
+        });
+      }
       if (activityKey && freshProfile) {
         savedWordsRef.current.add(activityKey);
         saveProgress(freshProfile.id, activityKey, {
