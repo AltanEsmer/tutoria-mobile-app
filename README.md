@@ -204,4 +204,4 @@ For detailed setup help, see [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETU
 
 ## License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+Tutoria LICENSE
